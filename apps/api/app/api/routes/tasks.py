@@ -2,13 +2,15 @@ from datetime import datetime
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models.task_status import TaskStatus
 from app.models.user import User
-from app.schemas.task import PaginatedTaskRead, TaskCreate, TaskRead, TaskStatusUpdate
+from app.schemas.task import GeneratedArtifactRead, PaginatedTaskRead, TaskCreate, TaskRead, TaskStatusUpdate
+from app.services.artifact_storage import get_artifact_storage
 from app.services.task_service import InvalidTaskStatusTransitionError, TaskListFilters, TaskService
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -58,6 +60,55 @@ def get_task(task_id: int, db: Session = Depends(get_db), current_user: User = D
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
     return task
+
+
+@router.get("/{task_id}/artifacts", response_model=list[GeneratedArtifactRead])
+def list_task_artifacts(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[GeneratedArtifactRead]:
+    artifacts = TaskService.list_artifacts(db, task_id, current_user.id)
+    if artifacts is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return artifacts
+
+
+@router.get("/{task_id}/artifacts/{artifact_id}", response_model=GeneratedArtifactRead)
+def get_task_artifact_metadata(
+    task_id: int,
+    artifact_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> GeneratedArtifactRead:
+    artifact = TaskService.get_artifact(db, task_id, artifact_id, current_user.id)
+    if artifact is None:
+        raise HTTPException(status_code=404, detail="Artifact not found")
+    return artifact
+
+
+@router.get("/{task_id}/artifacts/{artifact_id}/download")
+def download_task_artifact(
+    task_id: int,
+    artifact_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Response:
+    artifact = TaskService.get_artifact(db, task_id, artifact_id, current_user.id)
+    if artifact is None:
+        raise HTTPException(status_code=404, detail="Artifact not found")
+
+    storage = get_artifact_storage()
+    try:
+        content = storage.read_bytes(artifact.storage_key)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Artifact file not found") from exc
+
+    return Response(
+        content=content,
+        media_type=artifact.content_type,
+        headers={"Content-Disposition": f'attachment; filename="{artifact.file_name}"'},
+    )
 
 
 @router.patch("/{task_id}/status", response_model=TaskRead)

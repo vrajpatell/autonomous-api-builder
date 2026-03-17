@@ -7,7 +7,6 @@ from app.models.task_status import TaskStatus
 
 class TaskPlanRead(BaseModel):
     id: int
-    owner_id: int
     step_number: int
     title: str
     description: str
@@ -18,10 +17,12 @@ class TaskPlanRead(BaseModel):
 
 class GeneratedArtifactRead(BaseModel):
     id: int
-    owner_id: int
     artifact_type: str
     file_name: str
-    content: str
+    storage_backend: str
+    storage_key: str
+    content_type: str
+    file_size: int
     created_at: datetime
 
     class Config:
@@ -30,7 +31,6 @@ class GeneratedArtifactRead(BaseModel):
 
 class TaskProgressUpdateRead(BaseModel):
     id: int
-    owner_id: int
     status: str
     message: str
     created_at: datetime

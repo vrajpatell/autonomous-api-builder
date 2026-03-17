@@ -1,7 +1,11 @@
 import os
+import shutil
+from pathlib import Path
 
 os.environ["DATABASE_URL"] = "sqlite:///./test.db"
 os.environ["QUEUE_BACKEND"] = "noop"
+os.environ["STORAGE_BACKEND"] = "local"
+os.environ["STORAGE_LOCAL_BASE_PATH"] = "./test-artifacts"
 
 import pytest
 from fastapi.testclient import TestClient
@@ -21,8 +25,13 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 def setup_db():
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
+    artifact_dir = Path("./test-artifacts")
+    if artifact_dir.exists():
+        shutil.rmtree(artifact_dir)
     yield
     Base.metadata.drop_all(bind=engine)
+    if artifact_dir.exists():
+        shutil.rmtree(artifact_dir)
 
 
 def override_get_db():

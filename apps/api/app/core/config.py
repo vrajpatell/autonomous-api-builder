@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     jwt_secret_key: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
+    storage_backend: str = "local"
+    storage_local_base_path: str = "./data/artifacts"
 
     @property
     def effective_celery_broker_url(self) -> str:

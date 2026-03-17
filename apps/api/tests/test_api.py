@@ -187,7 +187,11 @@ def test_worker_processes_task_asynchronously(client):
     assert body["planner_status"] == "completed"
     assert body["planner_source"] == "fallback"
     assert len(body["plans"]) == 5
-    assert len(body["artifacts"]) == 1
+    assert len(body["artifacts"]) == 3
+    artifact = body["artifacts"][0]
+    assert artifact["storage_backend"] == "local"
+    assert artifact["storage_key"].startswith("tasks/")
+    assert artifact["file_size"] > 0
     status_history = [event["status"] for event in body["progress_updates"]]
     assert status_history == ["pending", "queued", "planning", "planning", "generating", "reviewing", "completed"]
 
@@ -196,3 +200,32 @@ def test_tasks_require_authentication(client):
     payload = {"title": "No auth", "user_prompt": "This request should fail without an auth token."}
     response = client.post("/api/tasks", json=payload)
     assert response.status_code == 401
+
+
+def test_artifact_listing_metadata_and_download(client):
+    headers, _ = register_and_login(client, "artifacts@example.com", "password123")
+    task = create_task(
+        client,
+        headers,
+        "Artifact task",
+        "Generate assets and confirm metadata and downloads are available for each output.",
+    )
+
+    process_generation_task(task["id"])
+
+    list_response = client.get(f"/api/tasks/{task['id']}/artifacts", headers=headers)
+    assert list_response.status_code == 200
+    artifacts = list_response.json()
+    assert len(artifacts) == 3
+
+    artifact_id = artifacts[0]["id"]
+    metadata_response = client.get(f"/api/tasks/{task['id']}/artifacts/{artifact_id}", headers=headers)
+    assert metadata_response.status_code == 200
+    metadata = metadata_response.json()
+    assert metadata["storage_backend"] == "local"
+    assert metadata["storage_key"].startswith("tasks/")
+
+    download_response = client.get(f"/api/tasks/{task['id']}/artifacts/{artifact_id}/download", headers=headers)
+    assert download_response.status_code == 200
+    assert len(download_response.content) == metadata["file_size"]
+    assert "attachment;" in download_response.headers["content-disposition"]
