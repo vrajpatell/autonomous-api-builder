@@ -18,6 +18,8 @@ export type Task = {
   title: string;
   user_prompt: string;
   status: string;
+  planner_status: string;
+  planner_source: string | null;
   created_at: string;
   updated_at: string | null;
   plans: TaskPlan[];

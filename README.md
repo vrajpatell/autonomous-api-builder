@@ -21,8 +21,9 @@ Production-style MVP monorepo that accepts a natural-language API request, store
 1. **Monorepo split by runtime boundary**: frontend and backend are isolated in `apps/` for independent deployment and scaling.
 2. **Service layer in backend**: task business logic is in `TaskService` so future agent workers can reuse core flows.
 3. **Task-centric data model**: `Task`, `TaskPlan`, and `GeneratedArtifact` provide immediate utility now and a durable base for future autonomous modules.
-4. **Worker-first task processing**: API requests persist tasks and enqueue Celery jobs so long-running generation flow is out of request/response.
-5. **Deployment-ready defaults**: Dockerized services, Render and Vercel configs, and GitHub Actions CI for backend tests.
+4. **Planner abstraction with provider swap**: generation pipeline resolves a `PlannerService` that can use a provider (OpenAI-compatible today) or deterministic fallback without API changes.
+5. **Worker-first task processing**: API requests persist tasks and enqueue Celery jobs so planning + generation stays out of request/response.
+6. **Deployment-ready defaults**: Dockerized services, Render and Vercel configs, and GitHub Actions CI for backend tests.
 
 ## Features
 
@@ -38,6 +39,7 @@ Production-style MVP monorepo that accepts a natural-language API request, store
   - `GET /api/tasks/{task_id}`
 - PostgreSQL storage via SQLAlchemy
 - Redis-backed Celery queue for background generation workers
+- LLM-driven planner with JSON schema validation, retries, and deterministic fallback
 - Basic automated tests for backend and frontend scaffold
 
 ## Local Development
@@ -68,6 +70,12 @@ Important backend queue variables:
 - `CELERY_BROKER_URL` (optional override)
 - `CELERY_RESULT_BACKEND` (optional override)
 
+Planner variables:
+- `PLANNER_MODEL` (default `gpt-4o-mini`)
+- `PLANNER_API_KEY` (leave empty to force deterministic fallback planner)
+- `PLANNER_BASE_URL` (OpenAI-compatible endpoint, default `https://api.openai.com/v1`)
+- `PLANNER_MAX_RETRIES` (retries for malformed/failed LLM outputs)
+
 ## Manual Non-Docker Run
 
 ### Backend
@@ -89,6 +97,10 @@ celery -A app.workers.celery_app.celery_app beat --loglevel=info
 Task status flow:
 
 `pending -> queued -> planning -> generating -> reviewing -> completed`
+
+Planner lifecycle:
+
+`pending -> running -> completed` (or `failed` when worker crashes). Planner source is tracked as `llm` or `fallback`.
 
 Failure path:
 
@@ -148,7 +160,7 @@ Backend CI workflow: `.github/workflows/backend-ci.yml`
 ## Next 10 Improvements
 
 1. Add an alternate RQ queue adapter behind the queue backend interface.
-2. Integrate LLM planner service for dynamic plan generation.
+2. Add richer planner observability (token usage/latency) and per-step confidence metadata.
 3. Add authentication + multi-user task ownership.
 4. Add pagination, filtering, and status transitions for task workflows.
 5. Add Alembic migration scripts and DB migration CI checks.

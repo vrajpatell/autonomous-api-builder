@@ -17,6 +17,8 @@ def test_create_and_list_tasks(client):
     created = create_response.json()
 
     assert created["status"] == "queued"
+    assert created["planner_status"] == "pending"
+    assert created["planner_source"] is None
     assert created["queue_job_id"].startswith("noop-")
     assert len(created["plans"]) == 0
     assert created["error_message"] is None
@@ -46,7 +48,9 @@ def test_worker_processes_task_asynchronously(client):
     assert detail_response.status_code == 200
     body = detail_response.json()
     assert body["status"] == "completed"
+    assert body["planner_status"] == "completed"
+    assert body["planner_source"] == "fallback"
     assert len(body["plans"]) == 5
     assert len(body["artifacts"]) == 1
     status_history = [event["status"] for event in body["progress_updates"]]
-    assert status_history == ["pending", "queued", "planning", "generating", "reviewing", "completed"]
+    assert status_history == ["pending", "queued", "planning", "planning", "generating", "reviewing", "completed"]

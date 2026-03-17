@@ -15,6 +15,8 @@ class Task(Base):
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="pending")
     queue_job_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    planner_status: Mapped[str] = mapped_column(String(50), nullable=False, default="pending")
+    planner_source: Mapped[str | None] = mapped_column(String(50), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

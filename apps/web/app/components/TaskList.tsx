@@ -20,6 +20,7 @@ export default function TaskList({ tasks, selectedTaskId, onSelect }: Props) {
             <tr style={{ textAlign: 'left' }}>
               <th>Title</th>
               <th>Status</th>
+              <th>Planner</th>
               <th>Created</th>
             </tr>
           </thead>
@@ -35,6 +36,7 @@ export default function TaskList({ tasks, selectedTaskId, onSelect }: Props) {
               >
                 <td>{task.title}</td>
                 <td>{task.status}</td>
+                <td>{task.planner_status}</td>
                 <td>{new Date(task.created_at).toLocaleString()}</td>
               </tr>
             ))}

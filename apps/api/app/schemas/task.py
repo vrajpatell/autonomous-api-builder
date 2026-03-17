@@ -46,6 +46,8 @@ class TaskRead(BaseModel):
     status: str
     queue_job_id: str | None
     error_message: str | None
+    planner_status: str
+    planner_source: str | None
     created_at: datetime
     updated_at: datetime | None
     plans: list[TaskPlanRead] = []

@@ -11,6 +11,10 @@ class Settings(BaseSettings):
     redis_url: str = "redis://redis:6379/0"
     celery_broker_url: str | None = None
     celery_result_backend: str | None = None
+    planner_model: str = "gpt-4o-mini"
+    planner_api_key: str | None = None
+    planner_base_url: str = "https://api.openai.com/v1"
+    planner_max_retries: int = 2
 
     @property
     def effective_celery_broker_url(self) -> str:
