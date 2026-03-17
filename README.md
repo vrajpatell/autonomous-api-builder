@@ -96,6 +96,10 @@ Auth variables:
 cd apps/api
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
+
+# apply DB schema migrations
+alembic upgrade head
+
 uvicorn app.main:app --reload
 
 # in another terminal, start the worker
@@ -103,6 +107,35 @@ celery -A app.workers.celery_app.celery_app worker --loglevel=info
 
 # optional scheduler scaffold
 celery -A app.workers.celery_app.celery_app beat --loglevel=info
+```
+
+### Database Migrations (Alembic)
+
+All backend schema changes are managed with Alembic migrations. `Base.metadata.create_all(...)` is not used in app startup.
+
+```bash
+cd apps/api
+
+# create a new migration from model changes
+make migration-create message="add task labels"
+
+# apply latest migrations
+make migrate
+
+# rollback one migration
+make migration-downgrade
+
+# fail if SQLAlchemy models and migrations drift
+make migration-check
+```
+
+Equivalent direct Alembic commands:
+
+```bash
+alembic revision --autogenerate -m "your message"
+alembic upgrade head
+alembic downgrade -1
+alembic check
 ```
 
 ### Async Task Lifecycle
@@ -152,7 +185,8 @@ npm test
 1. Push repository to GitHub.
 2. In Render, create Blueprint deploy using `render.yaml`.
 3. Ensure `DATABASE_URL` is wired from the managed Postgres instance.
-4. Render builds from `apps/api` Dockerfile and exposes port 8000.
+4. Run `alembic upgrade head` during deploy/release before serving traffic.
+5. Render builds from `apps/api` Dockerfile and exposes port 8000.
 
 ### Frontend on Vercel
 1. Import repo into Vercel.
@@ -164,6 +198,9 @@ npm test
 
 Backend CI workflow: `.github/workflows/backend-ci.yml`
 - Installs dependencies
+- Starts a temporary PostgreSQL service
+- Runs `alembic upgrade head`
+- Runs `alembic check` to catch migration/model drift
 - Runs pytest on push/PR for backend-related changes
 
 ## Screenshots
@@ -180,9 +217,9 @@ Backend CI workflow: `.github/workflows/backend-ci.yml`
 2. Add richer planner observability (token usage/latency) and per-step confidence metadata.
 3. Extend auth to role-based permissions (admin, project owner, auditor).
 4. Add audit logging + webhook notifications for workflow state changes.
-5. Add Alembic migration scripts and DB migration CI checks.
-6. Add generated artifact persistence as files/object storage references.
-7. Add structured logging, tracing, and observability dashboards.
-8. Expand frontend tests with React Testing Library + Playwright E2E.
-9. Add API versioning and stricter domain-level validation.
-10. Add agent orchestration modules (planner, coder, tester, reviewer, deployer).
+5. Add generated artifact persistence as files/object storage references.
+6. Add structured logging, tracing, and observability dashboards.
+7. Expand frontend tests with React Testing Library + Playwright E2E.
+8. Add API versioning and stricter domain-level validation.
+9. Add agent orchestration modules (planner, coder, tester, reviewer, deployer).
+10. Add canary deploy + rollback automation for backend releases.

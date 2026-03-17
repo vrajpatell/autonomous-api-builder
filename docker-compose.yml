@@ -28,6 +28,7 @@ services:
     depends_on:
       - db
       - redis
+    command: bash -lc "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
     ports:
       - '8000:8000'
 
@@ -43,7 +44,7 @@ services:
     depends_on:
       - db
       - redis
-    command: celery -A app.workers.celery_app.celery_app worker --loglevel=info
+    command: bash -lc "alembic upgrade head && celery -A app.workers.celery_app.celery_app worker --loglevel=info"
 
   beat:
     build:
@@ -57,7 +58,7 @@ services:
     depends_on:
       - db
       - redis
-    command: celery -A app.workers.celery_app.celery_app beat --loglevel=info
+    command: bash -lc "alembic upgrade head && celery -A app.workers.celery_app.celery_app beat --loglevel=info"
 
   web:
     build:

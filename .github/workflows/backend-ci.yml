@@ -13,6 +13,20 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: autonomous_api_builder
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d autonomous_api_builder"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     defaults:
       run:
         working-directory: apps/api
@@ -31,7 +45,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Run migrations
+        env:
+          DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/autonomous_api_builder
+        run: alembic upgrade head
+
+      - name: Migration drift check
+        env:
+          DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/autonomous_api_builder
+        run: alembic check
+
       - name: Run tests
         env:
           PYTHONPATH: .
+          DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/autonomous_api_builder
         run: pytest -q
