@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 from math import ceil
@@ -10,8 +11,12 @@ from app.models.artifact import GeneratedArtifact
 from app.models.task import Task
 from app.models.task_progress import TaskProgressUpdate
 from app.models.task_status import TaskStatus
+from app.observability import get_correlation_id
+from app.observability.metrics import active_tasks, tasks_total
 from app.queue import get_queue_backend
 from app.schemas.task import PaginatedTaskRead, TaskCreate, TaskListMeta
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -47,10 +52,16 @@ class TaskService:
                 message="Task created and awaiting queue assignment",
             )
         )
+        tasks_total.labels(status=TaskStatus.pending.value).inc()
+        active_tasks.inc()
+        logger.info(
+            "Task created",
+            extra={"event": "task.created", "task_id": task.id, "owner_id": owner_id},
+        )
 
         try:
             queue_backend = get_queue_backend()
-            task.queue_job_id = queue_backend.enqueue_task_generation(task.id)
+            task.queue_job_id = queue_backend.enqueue_task_generation(task.id, correlation_id=get_correlation_id())
             TaskService.update_status(
                 db,
                 task,
@@ -58,9 +69,21 @@ class TaskService:
                 "Task queued for asynchronous worker processing",
                 commit=False,
             )
-        except Exception as exc:
-            task.error_message = str(exc)
-            TaskService.update_status(db, task, TaskStatus.failed, str(exc), commit=False)
+            logger.info(
+                "Task queued",
+                extra={
+                    "event": "task.queued",
+                    "task_id": task.id,
+                    "queue_job_id": task.queue_job_id,
+                },
+            )
+        except Exception:
+            task.error_message = "Task queue enqueue failure"
+            TaskService.update_status(db, task, TaskStatus.failed, "Task queue enqueue failure", commit=False)
+            logger.exception(
+                "Failed to enqueue task",
+                extra={"event": "task.enqueue_failed", "task_id": task.id},
+            )
 
         db.commit()
         db.refresh(task)
@@ -127,7 +150,6 @@ class TaskService:
             .first()
         )
 
-
     @staticmethod
     def list_artifacts(db: Session, task_id: int, owner_id: int) -> list[GeneratedArtifact] | None:
         task = db.query(Task.id).filter(Task.id == task_id, Task.owner_id == owner_id).first()
@@ -181,7 +203,20 @@ class TaskService:
         TaskWorkflowPolicy.validate_transition(current, next_status)
 
         task.status = next_status.value
+        tasks_total.labels(status=next_status.value).inc()
+        if next_status in {TaskStatus.completed, TaskStatus.failed, TaskStatus.cancelled}:
+            active_tasks.dec()
         db.add(TaskProgressUpdate(task_id=task.id, status=next_status.value, message=message))
+        logger.info(
+            "Task status updated",
+            extra={
+                "event": "task.status_updated",
+                "task_id": task.id,
+                "from_status": current.value,
+                "to_status": next_status.value,
+                "message_text": message,
+            },
+        )
         if commit:
             db.commit()
             db.refresh(task)

@@ -1,3 +1,4 @@
+import logging
 import json
 import re
 from dataclasses import dataclass
@@ -146,6 +147,9 @@ class PlannerResult:
     source: str
 
 
+logger = logging.getLogger(__name__)
+
+
 class PlannerService:
     def __init__(self, provider: PlannerProvider | None, max_retries: int = 2) -> None:
         self.provider = provider
@@ -155,14 +159,20 @@ class PlannerService:
         if self.provider is None:
             return PlannerResult(plan=self.default_plan(), source="fallback")
 
-        for _ in range(self.max_retries + 1):
+        for attempt in range(self.max_retries + 1):
             try:
                 raw_response = self.provider.generate_plan(prompt)
                 parsed = parse_planner_response(raw_response)
+                logger.info("Planner provider succeeded", extra={"event": "planner.provider_success", "attempt": attempt + 1})
                 return PlannerResult(plan=parsed, source="llm")
             except Exception:
+                logger.exception(
+                    "Planner provider attempt failed",
+                    extra={"event": "planner.provider_error", "attempt": attempt + 1},
+                )
                 continue
 
+        logger.warning("Planner fell back to deterministic plan", extra={"event": "planner.fallback"})
         return PlannerResult(plan=self.default_plan(), source="fallback")
 
     @staticmethod

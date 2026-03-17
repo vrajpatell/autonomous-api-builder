@@ -1,5 +1,7 @@
 import json
+import logging
 
+from opentelemetry import trace
 from sqlalchemy.orm import Session
 
 from app.models.artifact import GeneratedArtifact
@@ -10,6 +12,9 @@ from app.models.task_status import TaskStatus
 from app.services.artifact_storage import get_artifact_storage
 from app.services.planner_factory import get_planner_service
 from app.services.task_service import TaskService
+
+logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
 
 class GenerationPipeline:
@@ -27,28 +32,44 @@ class GenerationPipeline:
         content: str,
         content_type: str,
     ) -> None:
-        storage = get_artifact_storage()
-        stored = storage.save_text(task_id=task_id, artifact_type=artifact_type, file_name=file_name, content=content)
-        db.add(
-            GeneratedArtifact(
-                task_id=task_id,
-                artifact_type=artifact_type,
-                file_name=file_name,
-                storage_backend=stored.backend,
-                storage_key=stored.key,
-                content_type=content_type,
-                file_size=stored.size_bytes,
+        with tracer.start_as_current_span(
+            "artifact.persist", attributes={"task.id": task_id, "artifact.type": artifact_type}
+        ):
+            storage = get_artifact_storage()
+            stored = storage.save_text(task_id=task_id, artifact_type=artifact_type, file_name=file_name, content=content)
+            db.add(
+                GeneratedArtifact(
+                    task_id=task_id,
+                    artifact_type=artifact_type,
+                    file_name=file_name,
+                    storage_backend=stored.backend,
+                    storage_key=stored.key,
+                    content_type=content_type,
+                    file_size=stored.size_bytes,
+                )
             )
-        )
+            logger.info(
+                "Artifact persisted",
+                extra={
+                    "event": "artifact.persisted",
+                    "task_id": task_id,
+                    "artifact_type": artifact_type,
+                    "storage_backend": stored.backend,
+                    "file_size": stored.size_bytes,
+                },
+            )
 
     @staticmethod
     def run(db: Session, task: Task) -> None:
+        logger.info("Generation pipeline started", extra={"event": "pipeline.started", "task_id": task.id})
         task.planner_status = "running"
         db.commit()
 
         GenerationPipeline.add_progress_update(db, task, TaskStatus.planning, "Building an execution plan")
 
-        planner_result = get_planner_service().generate_plan(task.user_prompt)
+        with tracer.start_as_current_span("planner.generate_plan", attributes={"task.id": task.id}):
+            planner_result = get_planner_service().generate_plan(task.user_prompt)
+
         task.planner_status = "completed"
         task.planner_source = planner_result.source
         db.query(TaskPlan).filter(TaskPlan.task_id == task.id).delete()
@@ -69,6 +90,15 @@ class GenerationPipeline:
             )
         )
         db.commit()
+        logger.info(
+            "Planner finished",
+            extra={
+                "event": "planner.completed",
+                "task_id": task.id,
+                "planner_source": planner_result.source,
+                "step_count": len(planner_result.plan.steps),
+            },
+        )
 
         GenerationPipeline.add_progress_update(db, task, TaskStatus.generating, "Generating API scaffolding artifacts")
 
@@ -100,3 +130,4 @@ class GenerationPipeline:
 
         GenerationPipeline.add_progress_update(db, task, TaskStatus.reviewing, "Reviewing generated assets")
         GenerationPipeline.add_progress_update(db, task, TaskStatus.completed, "Generation finished successfully")
+        logger.info("Generation pipeline completed", extra={"event": "pipeline.completed", "task_id": task.id})

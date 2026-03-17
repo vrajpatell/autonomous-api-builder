@@ -37,6 +37,8 @@ Production-style MVP monorepo that accepts a natural-language API request, store
   - Task list with status badges, filters, sorting, search, and pagination
   - Task detail panel with generated plan, status history, and downloadable artifacts
 - FastAPI backend endpoints:
+  - `GET /metrics` (Prometheus metrics)
+  - `GET /api/metrics` (Prometheus metrics alias)
   - `GET /api/health`
   - `POST /api/auth/register`
   - `POST /api/auth/login`
@@ -172,6 +174,47 @@ cd apps/web
 npm install
 npm run dev
 ```
+
+
+## Observability
+
+### What is instrumented
+- **Structured JSON logs** across API startup, request middleware, task service lifecycle transitions, planner execution, artifact persistence, and Celery workers.
+- **Correlation and request IDs** propagated through HTTP (`x-request-id`, `x-correlation-id`), queue enqueue/dequeue, worker execution, planner calls, and artifact generation logs.
+- **Metrics for Prometheus/Grafana**:
+  - `autobuilder_api_requests_total`
+  - `autobuilder_api_request_latency_seconds`
+  - `autobuilder_worker_jobs_total`
+  - `autobuilder_worker_job_duration_seconds`
+  - `autobuilder_tasks_lifecycle_total`
+  - `autobuilder_active_tasks`
+- **OpenTelemetry tracing hooks** with OTLP export support (vendor-neutral).
+- **Frontend error hooks** for runtime errors, unhandled promise rejections, and API failures (JSON payload in browser console with correlation ID).
+
+### Environment variables
+Backend observability variables in `apps/api/.env.example`:
+- `OTEL_ENABLED`
+- `OTEL_SERVICE_NAME`
+- `OTEL_EXPORTER_OTLP_ENDPOINT`
+
+### Local observability stack
+`docker compose up --build` now includes:
+- **Prometheus**: http://localhost:9090
+- **Grafana**: http://localhost:3001 (admin/admin)
+- **Jaeger**: http://localhost:16686
+- **OTel Collector** receiving OTLP on ports `4317` and `4318`
+
+### Dashboard quick start
+1. Start all services: `docker compose up --build`.
+2. Open Grafana and verify the pre-provisioned Prometheus data source.
+3. Build panels from `autobuilder_*` metrics for:
+   - API throughput + latency
+   - Worker success/failure ratio
+   - Task lifecycle counts by status
+4. Open Jaeger and inspect traces by service name (`autonomous-api-builder-api`).
+
+### Security note
+Error logging intentionally avoids dumping secret-bearing config values. Exceptions are logged with structured type/message fields, and queue/planner failures are persisted with sanitized task-level messages.
 
 ## Testing
 
