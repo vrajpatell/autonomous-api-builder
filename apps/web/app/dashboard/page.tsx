@@ -2,13 +2,16 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
+import Protected from '@/app/components/Protected';
 import TaskDetail from '@/app/components/TaskDetail';
 import TaskForm from '@/app/components/TaskForm';
 import TaskList from '@/app/components/TaskList';
 import { getTask, listTasks } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 import { Task } from '@/lib/types';
 
 export default function DashboardPage() {
+  const { token, user } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -16,11 +19,12 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!token) return;
     const load = async () => {
       setLoading(true);
       setError(null);
       try {
-        const data = await listTasks();
+        const data = await listTasks(token);
         setTasks(data);
         if (data.length > 0) {
           setSelectedTaskId(data[0].id);
@@ -33,14 +37,14 @@ export default function DashboardPage() {
     };
 
     void load();
-  }, []);
+  }, [token]);
 
   useEffect(() => {
-    if (!selectedTaskId) return;
+    if (!selectedTaskId || !token) return;
 
     const loadDetail = async () => {
       try {
-        const detail = await getTask(selectedTaskId);
+        const detail = await getTask(selectedTaskId, token);
         setSelectedTask(detail);
       } catch {
         setSelectedTask(null);
@@ -48,7 +52,7 @@ export default function DashboardPage() {
     };
 
     void loadDetail();
-  }, [selectedTaskId]);
+  }, [selectedTaskId, token]);
 
   const onCreated = (newTask: Task) => {
     setTasks((prev) => [newTask, ...prev]);
@@ -57,25 +61,27 @@ export default function DashboardPage() {
   };
 
   const subtitle = useMemo(
-    () => `Track API build requests and generated planning output in one place.`,
-    [],
+    () => `Track API build requests and generated planning output in one place. Signed in as ${user?.display_name || user?.email}.`,
+    [user],
   );
 
   return (
-    <main className="container grid" style={{ gap: '1.25rem' }}>
-      <section>
-        <h1>Dashboard</h1>
-        <p>{subtitle}</p>
-      </section>
+    <Protected>
+      <main className="container grid" style={{ gap: '1.25rem' }}>
+        <section>
+          <h1>Dashboard</h1>
+          <p>{subtitle}</p>
+        </section>
 
-      <TaskForm onCreated={onCreated} />
+        {token ? <TaskForm onCreated={onCreated} token={token} /> : null}
 
-      {loading ? <p>Loading tasks...</p> : error ? <p style={{ color: '#dc2626' }}>{error}</p> : null}
+        {loading ? <p>Loading tasks...</p> : error ? <p style={{ color: '#dc2626' }}>{error}</p> : null}
 
-      <section className="grid grid-2">
-        <TaskList tasks={tasks} selectedTaskId={selectedTaskId} onSelect={setSelectedTaskId} />
-        <TaskDetail task={selectedTask} />
-      </section>
-    </main>
+        <section className="grid grid-2">
+          <TaskList tasks={tasks} selectedTaskId={selectedTaskId} onSelect={setSelectedTaskId} />
+          <TaskDetail task={selectedTask} />
+        </section>
+      </main>
+    </Protected>
   );
 }

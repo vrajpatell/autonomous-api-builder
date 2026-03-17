@@ -7,9 +7,10 @@ import { Task } from '@/lib/types';
 
 type Props = {
   onCreated: (task: Task) => void;
+  token: string;
 };
 
-export default function TaskForm({ onCreated }: Props) {
+export default function TaskForm({ onCreated, token }: Props) {
   const [title, setTitle] = useState('');
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
@@ -21,7 +22,7 @@ export default function TaskForm({ onCreated }: Props) {
     setError(null);
 
     try {
-      const created = await createTask({ title, user_prompt: prompt });
+      const created = await createTask({ title, user_prompt: prompt }, token);
       onCreated(created);
       setTitle('');
       setPrompt('');

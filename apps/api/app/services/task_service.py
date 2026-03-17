@@ -11,10 +11,11 @@ class TaskService:
     """Business logic for task creation and retrieval."""
 
     @staticmethod
-    def create_task(db: Session, payload: TaskCreate) -> Task:
+    def create_task(db: Session, payload: TaskCreate, owner_id: int) -> Task:
         task = Task(
             title=payload.title,
             user_prompt=payload.user_prompt,
+            owner_id=owner_id,
             status=TaskStatus.pending.value,
             planner_status="pending",
         )
@@ -48,10 +49,10 @@ class TaskService:
 
         db.commit()
         db.refresh(task)
-        return TaskService.get_task(db, task.id)
+        return TaskService.get_task(db, task.id, owner_id)
 
     @staticmethod
-    def list_tasks(db: Session) -> list[Task]:
+    def list_tasks(db: Session, owner_id: int) -> list[Task]:
         return (
             db.query(Task)
             .options(
@@ -59,12 +60,13 @@ class TaskService:
                 selectinload(Task.artifacts),
                 selectinload(Task.progress_updates),
             )
+            .filter(Task.owner_id == owner_id)
             .order_by(Task.created_at.desc())
             .all()
         )
 
     @staticmethod
-    def get_task(db: Session, task_id: int) -> Task | None:
+    def get_task(db: Session, task_id: int, owner_id: int) -> Task | None:
         return (
             db.query(Task)
             .options(
@@ -72,6 +74,6 @@ class TaskService:
                 selectinload(Task.artifacts),
                 selectinload(Task.progress_updates),
             )
-            .filter(Task.id == task_id)
+            .filter(Task.id == task_id, Task.owner_id == owner_id)
             .first()
         )
