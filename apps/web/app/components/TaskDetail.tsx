@@ -22,18 +22,26 @@ export default function TaskDetail({ task }: Props) {
       <p>
         <strong>Status:</strong> {task.status}
       </p>
+      <p>
+        <strong>Planner:</strong> {task.planner_status}
+        {task.planner_source ? ` (${task.planner_source})` : ''}
+      </p>
       <p>{task.user_prompt}</p>
       <h4>Execution Plan</h4>
-      <ol>
-        {task.plans.map((step) => (
-          <li key={step.id}>
-            <strong>
-              {step.step_number}. {step.title}
-            </strong>
-            <p>{step.description}</p>
-          </li>
-        ))}
-      </ol>
+      {task.plans.length === 0 ? (
+        <p>Planner is still preparing plan steps...</p>
+      ) : (
+        <ol>
+          {task.plans.map((step) => (
+            <li key={step.id}>
+              <strong>
+                {step.step_number}. {step.title}
+              </strong>
+              <p>{step.description}</p>
+            </li>
+          ))}
+        </ol>
+      )}
     </section>
   );
 }

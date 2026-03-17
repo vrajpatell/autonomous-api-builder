@@ -18,6 +18,7 @@ def process_generation_task(task_id: int) -> None:
         task = db.query(Task).filter(Task.id == task_id).first()
         if task is not None:
             task.status = TaskStatus.failed.value
+            task.planner_status = "failed"
             task.error_message = str(exc)
             db.add(TaskProgressUpdate(task_id=task.id, status=TaskStatus.failed.value, message=str(exc)))
             db.commit()

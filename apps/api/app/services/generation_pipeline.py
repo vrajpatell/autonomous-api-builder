@@ -5,17 +5,10 @@ from app.models.task import Task
 from app.models.task_plan import TaskPlan
 from app.models.task_progress import TaskProgressUpdate
 from app.models.task_status import TaskStatus
+from app.services.planner_factory import get_planner_service
 
 
 class GenerationPipeline:
-    PLAN_STEPS = [
-        ("Analyze requirements", "Parse the prompt and extract architecture, stack, and constraints."),
-        ("Design system architecture", "Define backend modules, data models, and API contracts."),
-        ("Generate implementation scaffolding", "Prepare directories, initial services, and integration points."),
-        ("Validate and test", "Run baseline tests and static checks to verify generated outputs."),
-        ("Prepare deployment bundle", "Create Docker, CI/CD, and deployment configuration artifacts."),
-    ]
-
     @staticmethod
     def add_progress_update(db: Session, task: Task, status: TaskStatus, message: str) -> None:
         task.status = status.value
@@ -25,11 +18,31 @@ class GenerationPipeline:
 
     @staticmethod
     def run(db: Session, task: Task) -> None:
+        task.planner_status = "running"
+        db.commit()
+
         GenerationPipeline.add_progress_update(db, task, TaskStatus.planning, "Building an execution plan")
 
+        planner_result = get_planner_service().generate_plan(task.user_prompt)
+        task.planner_status = "completed"
+        task.planner_source = planner_result.source
         db.query(TaskPlan).filter(TaskPlan.task_id == task.id).delete()
-        for index, (title, description) in enumerate(GenerationPipeline.PLAN_STEPS, start=1):
-            db.add(TaskPlan(task_id=task.id, step_number=index, title=title, description=description))
+        for step in planner_result.plan.steps:
+            db.add(
+                TaskPlan(
+                    task_id=task.id,
+                    step_number=step.step_number,
+                    title=step.title,
+                    description=step.description,
+                )
+            )
+        db.add(
+            TaskProgressUpdate(
+                task_id=task.id,
+                status=TaskStatus.planning.value,
+                message=f"Execution plan generated via {planner_result.source}",
+            )
+        )
         db.commit()
 
         GenerationPipeline.add_progress_update(db, task, TaskStatus.generating, "Generating API scaffolding artifacts")

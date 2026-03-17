@@ -12,7 +12,12 @@ class TaskService:
 
     @staticmethod
     def create_task(db: Session, payload: TaskCreate) -> Task:
-        task = Task(title=payload.title, user_prompt=payload.user_prompt, status=TaskStatus.pending.value)
+        task = Task(
+            title=payload.title,
+            user_prompt=payload.user_prompt,
+            status=TaskStatus.pending.value,
+            planner_status="pending",
+        )
         db.add(task)
         db.flush()
         db.add(
