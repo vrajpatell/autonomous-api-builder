@@ -1,7 +1,9 @@
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.task import Task
-from app.models.task_plan import TaskPlan
+from app.models.task_progress import TaskProgressUpdate
+from app.models.task_status import TaskStatus
+from app.queue import get_queue_backend
 from app.schemas.task import TaskCreate
 
 
@@ -10,22 +12,35 @@ class TaskService:
 
     @staticmethod
     def create_task(db: Session, payload: TaskCreate) -> Task:
-        task = Task(title=payload.title, user_prompt=payload.user_prompt, status="planning")
+        task = Task(title=payload.title, user_prompt=payload.user_prompt, status=TaskStatus.pending.value)
         db.add(task)
         db.flush()
+        db.add(
+            TaskProgressUpdate(
+                task_id=task.id,
+                status=TaskStatus.pending.value,
+                message="Task created and awaiting queue assignment",
+            )
+        )
 
-        plan_steps = [
-            ("Analyze requirements", "Parse the prompt and extract architecture, stack, and constraints."),
-            ("Design system architecture", "Define backend modules, data models, and API contracts."),
-            ("Generate implementation scaffolding", "Prepare directories, initial services, and integration points."),
-            ("Validate and test", "Run baseline tests and static checks to verify generated outputs."),
-            ("Prepare deployment bundle", "Create Docker, CI/CD, and deployment configuration artifacts."),
-        ]
+        try:
+            queue_backend = get_queue_backend()
+            task.queue_job_id = queue_backend.enqueue_task_generation(task.id)
+            task.status = TaskStatus.queued.value
+            db.add(
+                TaskProgressUpdate(
+                    task_id=task.id,
+                    status=TaskStatus.queued.value,
+                    message="Task queued for asynchronous worker processing",
+                )
+            )
+        except Exception as exc:
+            task.status = TaskStatus.failed.value
+            task.error_message = str(exc)
+            db.add(
+                TaskProgressUpdate(task_id=task.id, status=TaskStatus.failed.value, message=str(exc))
+            )
 
-        for idx, (title, description) in enumerate(plan_steps, start=1):
-            db.add(TaskPlan(task_id=task.id, step_number=idx, title=title, description=description))
-
-        task.status = "planned"
         db.commit()
         db.refresh(task)
         return TaskService.get_task(db, task.id)
@@ -34,7 +49,11 @@ class TaskService:
     def list_tasks(db: Session) -> list[Task]:
         return (
             db.query(Task)
-            .options(selectinload(Task.plans), selectinload(Task.artifacts))
+            .options(
+                selectinload(Task.plans),
+                selectinload(Task.artifacts),
+                selectinload(Task.progress_updates),
+            )
             .order_by(Task.created_at.desc())
             .all()
         )
@@ -43,7 +62,11 @@ class TaskService:
     def get_task(db: Session, task_id: int) -> Task | None:
         return (
             db.query(Task)
-            .options(selectinload(Task.plans), selectinload(Task.artifacts))
+            .options(
+                selectinload(Task.plans),
+                selectinload(Task.artifacts),
+                selectinload(Task.progress_updates),
+            )
             .filter(Task.id == task_id)
             .first()
         )

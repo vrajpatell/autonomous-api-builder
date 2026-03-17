@@ -24,6 +24,16 @@ class GeneratedArtifactRead(BaseModel):
         from_attributes = True
 
 
+class TaskProgressUpdateRead(BaseModel):
+    id: int
+    status: str
+    message: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class TaskCreate(BaseModel):
     title: str = Field(min_length=3, max_length=255)
     user_prompt: str = Field(min_length=10)
@@ -34,10 +44,13 @@ class TaskRead(BaseModel):
     title: str
     user_prompt: str
     status: str
+    queue_job_id: str | None
+    error_message: str | None
     created_at: datetime
     updated_at: datetime | None
     plans: list[TaskPlanRead] = []
     artifacts: list[GeneratedArtifactRead] = []
+    progress_updates: list[TaskProgressUpdateRead] = []
 
     class Config:
         from_attributes = True

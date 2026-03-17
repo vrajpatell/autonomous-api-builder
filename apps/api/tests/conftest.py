@@ -1,6 +1,7 @@
 import os
 
 os.environ["DATABASE_URL"] = "sqlite:///./test.db"
+os.environ["QUEUE_BACKEND"] = "noop"
 
 import pytest
 from fastapi.testclient import TestClient
