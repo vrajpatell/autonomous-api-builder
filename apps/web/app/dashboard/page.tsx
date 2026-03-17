@@ -97,7 +97,7 @@ export default function DashboardPage() {
             onFilterChange={setFilters}
             totalPages={totalPages}
           />
-          <TaskDetail task={selectedTask} />
+          <TaskDetail task={selectedTask} token={token} />
         </section>
       </main>
     </Protected>

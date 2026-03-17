@@ -1,12 +1,14 @@
 'use client';
 
+import { downloadArtifact } from '@/lib/api';
 import { Task } from '@/lib/types';
 
 type Props = {
   task: Task | null;
+  token: string | null;
 };
 
-export default function TaskDetail({ task }: Props) {
+export default function TaskDetail({ task, token }: Props) {
   if (!task) {
     return (
       <section className="card">
@@ -15,6 +17,24 @@ export default function TaskDetail({ task }: Props) {
       </section>
     );
   }
+
+  const handleOpenArtifact = async (artifactId: number, fileName: string, openInline: boolean) => {
+    if (!token) return;
+    const blob = await downloadArtifact(task.id, artifactId, token);
+    const url = URL.createObjectURL(blob);
+    if (openInline) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <section className="card">
@@ -53,6 +73,31 @@ export default function TaskDetail({ task }: Props) {
             </li>
           ))}
         </ol>
+      )}
+
+      <h4>Artifacts</h4>
+      {task.artifacts.length === 0 ? (
+        <p>No generated artifacts yet.</p>
+      ) : (
+        <ul>
+          {task.artifacts.map((artifact) => {
+            const inlineViewable =
+              artifact.content_type.startsWith('text/') || artifact.content_type === 'application/json';
+            return (
+              <li key={artifact.id}>
+                <strong>{artifact.file_name}</strong> ({artifact.content_type}, {artifact.file_size} bytes)
+                {inlineViewable ? (
+                  <button type="button" onClick={() => void handleOpenArtifact(artifact.id, artifact.file_name, true)}>
+                    View
+                  </button>
+                ) : null}
+                <button type="button" onClick={() => void handleOpenArtifact(artifact.id, artifact.file_name, false)}>
+                  Download
+                </button>
+              </li>
+            );
+          })}
+        </ul>
       )}
     </section>
   );

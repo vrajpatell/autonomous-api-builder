@@ -19,7 +19,10 @@ export type GeneratedArtifact = {
   id: number;
   artifact_type: string;
   file_name: string;
-  content: string;
+  storage_backend: string;
+  storage_key: string;
+  content_type: string;
+  file_size: number;
   created_at: string;
 };
 

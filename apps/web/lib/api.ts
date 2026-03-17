@@ -73,3 +73,18 @@ export function createTask(payload: CreateTaskPayload, token: string): Promise<T
 export function getTask(taskId: number, token: string): Promise<Task> {
   return request<Task>(`/tasks/${taskId}`, undefined, token);
 }
+
+export async function downloadArtifact(taskId: number, artifactId: number, token: string): Promise<Blob> {
+  const response = await fetch(`${API_BASE_URL}/tasks/${taskId}/artifacts/${artifactId}/download`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to download artifact');
+  }
+
+  return response.blob();
+}

@@ -35,7 +35,7 @@ Production-style MVP monorepo that accepts a natural-language API request, store
 - Dashboard with per-user task data:
   - Build request form
   - Task list with status badges, filters, sorting, search, and pagination
-  - Task detail panel with generated plan and status history
+  - Task detail panel with generated plan, status history, and downloadable artifacts
 - FastAPI backend endpoints:
   - `GET /api/health`
   - `POST /api/auth/register`
@@ -45,6 +45,9 @@ Production-style MVP monorepo that accepts a natural-language API request, store
   - `GET /api/tasks` (authenticated, pagination/filter/sort/query metadata)
   - `GET /api/tasks/{task_id}` (authenticated, owner-only)
   - `PATCH /api/tasks/{task_id}/status` (authenticated, owner-only, transition-safe)
+  - `GET /api/tasks/{task_id}/artifacts` (authenticated, owner-only artifact listing)
+  - `GET /api/tasks/{task_id}/artifacts/{artifact_id}` (authenticated metadata lookup)
+  - `GET /api/tasks/{task_id}/artifacts/{artifact_id}/download` (authenticated artifact retrieval)
 - PostgreSQL storage via SQLAlchemy
 - Redis-backed Celery queue for background generation workers
 - LLM-driven planner with JSON schema validation, retries, and deterministic fallback
@@ -88,6 +91,10 @@ Auth variables:
 - `JWT_SECRET_KEY` (required in non-dev; use a strong random secret)
 - `JWT_ALGORITHM` (default `HS256`)
 - `ACCESS_TOKEN_EXPIRE_MINUTES` (default `60`)
+
+Artifact storage variables:
+- `STORAGE_BACKEND` (default `local`; interface is ready for S3/GCS/Azure backends)
+- `STORAGE_LOCAL_BASE_PATH` (default `./data/artifacts`, artifacts are written as `tasks/<task_id>/<artifact_type>/<uuid>-<file_name>`)
 
 ## Manual Non-Docker Run
 
@@ -157,6 +164,7 @@ Failure path:
 `* -> failed` with `error_message` persisted on the task.
 
 Progress updates are written to `task_progress_updates`, making worker execution observable by polling task detail endpoints.
+Generated outputs are persisted through a storage abstraction; local development writes files to disk and stores only artifact metadata + storage references in the database.
 
 ### Frontend
 ```bash
@@ -217,7 +225,7 @@ Backend CI workflow: `.github/workflows/backend-ci.yml`
 2. Add richer planner observability (token usage/latency) and per-step confidence metadata.
 3. Extend auth to role-based permissions (admin, project owner, auditor).
 4. Add audit logging + webhook notifications for workflow state changes.
-5. Add generated artifact persistence as files/object storage references.
+5. Add artifact integrity checks and retention policies for generated files.
 6. Add structured logging, tracing, and observability dashboards.
 7. Expand frontend tests with React Testing Library + Playwright E2E.
 8. Add API versioning and stricter domain-level validation.

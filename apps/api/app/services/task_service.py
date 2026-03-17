@@ -6,6 +6,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, selectinload
 
 from app.domain.task_workflow import InvalidTaskStatusTransitionError, TaskWorkflowPolicy
+from app.models.artifact import GeneratedArtifact
 from app.models.task import Task
 from app.models.task_progress import TaskProgressUpdate
 from app.models.task_status import TaskStatus
@@ -123,6 +124,32 @@ class TaskService:
                 selectinload(Task.progress_updates),
             )
             .filter(Task.id == task_id, Task.owner_id == owner_id)
+            .first()
+        )
+
+
+    @staticmethod
+    def list_artifacts(db: Session, task_id: int, owner_id: int) -> list[GeneratedArtifact] | None:
+        task = db.query(Task.id).filter(Task.id == task_id, Task.owner_id == owner_id).first()
+        if task is None:
+            return None
+        return (
+            db.query(GeneratedArtifact)
+            .filter(GeneratedArtifact.task_id == task_id)
+            .order_by(GeneratedArtifact.created_at.desc())
+            .all()
+        )
+
+    @staticmethod
+    def get_artifact(db: Session, task_id: int, artifact_id: int, owner_id: int) -> GeneratedArtifact | None:
+        return (
+            db.query(GeneratedArtifact)
+            .join(Task, Task.id == GeneratedArtifact.task_id)
+            .filter(
+                GeneratedArtifact.id == artifact_id,
+                GeneratedArtifact.task_id == task_id,
+                Task.owner_id == owner_id,
+            )
             .first()
         )
 
