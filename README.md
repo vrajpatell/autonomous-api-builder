@@ -21,7 +21,7 @@ Production-style MVP monorepo that accepts a natural-language API request, store
 1. **Monorepo split by runtime boundary**: frontend and backend are isolated in `apps/` for independent deployment and scaling.
 2. **Service layer in backend**: task business logic is in `TaskService` so future agent workers can reuse core flows.
 3. **Task-centric data model**: `Task`, `TaskPlan`, and `GeneratedArtifact` provide immediate utility now and a durable base for future autonomous modules.
-4. **Mock plan generation on create**: every new task receives a 5-step plan to make dashboard output useful right away.
+4. **Worker-first task processing**: API requests persist tasks and enqueue Celery jobs so long-running generation flow is out of request/response.
 5. **Deployment-ready defaults**: Dockerized services, Render and Vercel configs, and GitHub Actions CI for backend tests.
 
 ## Features
@@ -37,6 +37,7 @@ Production-style MVP monorepo that accepts a natural-language API request, store
   - `GET /api/tasks`
   - `GET /api/tasks/{task_id}`
 - PostgreSQL storage via SQLAlchemy
+- Redis-backed Celery queue for background generation workers
 - Basic automated tests for backend and frontend scaffold
 
 ## Local Development
@@ -54,10 +55,18 @@ Services:
 - Web: http://localhost:3000
 - API: http://localhost:8000
 - API docs: http://localhost:8000/docs
+- Worker: Celery worker (`worker` service)
+- Beat scaffold: Celery beat (`beat` service)
 
 ### 3) Environment files
 - Backend template: `apps/api/.env.example`
 - Frontend template: `apps/web/.env.example`
+
+Important backend queue variables:
+- `QUEUE_BACKEND` (`celery` by default, `noop` available for tests/fallback)
+- `REDIS_URL`
+- `CELERY_BROKER_URL` (optional override)
+- `CELERY_RESULT_BACKEND` (optional override)
 
 ## Manual Non-Docker Run
 
@@ -67,7 +76,25 @@ cd apps/api
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload
+
+# in another terminal, start the worker
+celery -A app.workers.celery_app.celery_app worker --loglevel=info
+
+# optional scheduler scaffold
+celery -A app.workers.celery_app.celery_app beat --loglevel=info
 ```
+
+### Async Task Lifecycle
+
+Task status flow:
+
+`pending -> queued -> planning -> generating -> reviewing -> completed`
+
+Failure path:
+
+`* -> failed` with `error_message` persisted on the task.
+
+Progress updates are written to `task_progress_updates`, making worker execution observable by polling task detail endpoints.
 
 ### Frontend
 ```bash
@@ -120,7 +147,7 @@ Backend CI workflow: `.github/workflows/backend-ci.yml`
 
 ## Next 10 Improvements
 
-1. Add async background worker queue (Celery/RQ) for long-running generation jobs.
+1. Add an alternate RQ queue adapter behind the queue backend interface.
 2. Integrate LLM planner service for dynamic plan generation.
 3. Add authentication + multi-user task ownership.
 4. Add pagination, filtering, and status transitions for task workflows.
