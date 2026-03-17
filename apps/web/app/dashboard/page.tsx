@@ -8,7 +8,7 @@ import TaskForm from '@/app/components/TaskForm';
 import TaskList from '@/app/components/TaskList';
 import { getTask, listTasks } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { Task } from '@/lib/types';
+import { ListTaskParams, Task } from '@/lib/types';
 
 export default function DashboardPage() {
   const { token, user } = useAuth();
@@ -17,6 +17,13 @@ export default function DashboardPage() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [totalPages, setTotalPages] = useState(0);
+  const [filters, setFilters] = useState<ListTaskParams>({
+    page: 1,
+    page_size: 10,
+    sort_by: 'created_at',
+    sort_order: 'desc',
+  });
 
   useEffect(() => {
     if (!token) return;
@@ -24,10 +31,14 @@ export default function DashboardPage() {
       setLoading(true);
       setError(null);
       try {
-        const data = await listTasks(token);
-        setTasks(data);
-        if (data.length > 0) {
-          setSelectedTaskId(data[0].id);
+        const data = await listTasks(token, filters);
+        setTasks(data.items);
+        setTotalPages(data.meta.total_pages);
+        if (data.items.length > 0) {
+          setSelectedTaskId((prev) => (prev && data.items.some((item) => item.id === prev) ? prev : data.items[0].id));
+        } else {
+          setSelectedTaskId(null);
+          setSelectedTask(null);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load tasks');
@@ -37,7 +48,7 @@ export default function DashboardPage() {
     };
 
     void load();
-  }, [token]);
+  }, [token, filters]);
 
   useEffect(() => {
     if (!selectedTaskId || !token) return;
@@ -78,7 +89,14 @@ export default function DashboardPage() {
         {loading ? <p>Loading tasks...</p> : error ? <p style={{ color: '#dc2626' }}>{error}</p> : null}
 
         <section className="grid grid-2">
-          <TaskList tasks={tasks} selectedTaskId={selectedTaskId} onSelect={setSelectedTaskId} />
+          <TaskList
+            tasks={tasks}
+            selectedTaskId={selectedTaskId}
+            onSelect={setSelectedTaskId}
+            filters={filters}
+            onFilterChange={setFilters}
+            totalPages={totalPages}
+          />
           <TaskDetail task={selectedTask} />
         </section>
       </main>

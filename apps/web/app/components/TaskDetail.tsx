@@ -27,6 +27,18 @@ export default function TaskDetail({ task }: Props) {
         {task.planner_source ? ` (${task.planner_source})` : ''}
       </p>
       <p>{task.user_prompt}</p>
+      <h4>Status History</h4>
+      {task.progress_updates.length === 0 ? (
+        <p>No status updates recorded.</p>
+      ) : (
+        <ul>
+          {task.progress_updates.map((update) => (
+            <li key={update.id}>
+              <strong>{update.status}</strong> - {update.message} ({new Date(update.created_at).toLocaleString()})
+            </li>
+          ))}
+        </ul>
+      )}
       <h4>Execution Plan</h4>
       {task.plans.length === 0 ? (
         <p>Planner is still preparing plan steps...</p>

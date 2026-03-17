@@ -1,4 +1,13 @@
-import { AuthResponse, CreateTaskPayload, LoginPayload, RegisterPayload, Task, User } from './types';
+import {
+  AuthResponse,
+  CreateTaskPayload,
+  ListTaskParams,
+  LoginPayload,
+  PaginatedTaskResponse,
+  RegisterPayload,
+  Task,
+  User,
+} from './types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api';
 
@@ -39,8 +48,15 @@ export function me(token: string): Promise<User> {
   return request<User>('/auth/me', undefined, token);
 }
 
-export function listTasks(token: string): Promise<Task[]> {
-  return request<Task[]>('/tasks', undefined, token);
+export function listTasks(token: string, params: ListTaskParams = {}): Promise<PaginatedTaskResponse> {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== '') {
+      query.set(key, String(value));
+    }
+  }
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+  return request<PaginatedTaskResponse>(`/tasks${suffix}`, undefined, token);
 }
 
 export function createTask(payload: CreateTaskPayload, token: string): Promise<Task> {

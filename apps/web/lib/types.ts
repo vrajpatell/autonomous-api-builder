@@ -1,3 +1,13 @@
+export type TaskStatus =
+  | 'pending'
+  | 'queued'
+  | 'planning'
+  | 'generating'
+  | 'reviewing'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
+
 export type TaskPlan = {
   id: number;
   step_number: number;
@@ -25,7 +35,7 @@ export type Task = {
   owner_id: number;
   title: string;
   user_prompt: string;
-  status: string;
+  status: TaskStatus;
   planner_status: string;
   planner_source: string | null;
   queue_job_id: string | null;
@@ -35,6 +45,27 @@ export type Task = {
   plans: TaskPlan[];
   artifacts: GeneratedArtifact[];
   progress_updates: TaskProgressUpdate[];
+};
+
+export type PaginatedTaskResponse = {
+  items: Task[];
+  meta: {
+    total_count: number;
+    current_page: number;
+    page_size: number;
+    total_pages: number;
+  };
+};
+
+export type ListTaskParams = {
+  page?: number;
+  page_size?: number;
+  status?: TaskStatus | '';
+  date_from?: string;
+  date_to?: string;
+  search?: string;
+  sort_by?: 'created_at' | 'updated_at';
+  sort_order?: 'asc' | 'desc';
 };
 
 export type CreateTaskPayload = {

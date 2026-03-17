@@ -9,3 +9,4 @@ class TaskStatus(StrEnum):
     reviewing = "reviewing"
     completed = "completed"
     failed = "failed"
+    cancelled = "cancelled"

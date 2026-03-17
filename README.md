@@ -34,16 +34,17 @@ Production-style MVP monorepo that accepts a natural-language API request, store
   - Logout and current-user display in nav
 - Dashboard with per-user task data:
   - Build request form
-  - Task list with statuses
-  - Task detail panel with generated plan
+  - Task list with status badges, filters, sorting, search, and pagination
+  - Task detail panel with generated plan and status history
 - FastAPI backend endpoints:
   - `GET /api/health`
   - `POST /api/auth/register`
   - `POST /api/auth/login`
   - `GET /api/auth/me`
   - `POST /api/tasks` (authenticated)
-  - `GET /api/tasks` (authenticated)
+  - `GET /api/tasks` (authenticated, pagination/filter/sort/query metadata)
   - `GET /api/tasks/{task_id}` (authenticated, owner-only)
+  - `PATCH /api/tasks/{task_id}/status` (authenticated, owner-only, transition-safe)
 - PostgreSQL storage via SQLAlchemy
 - Redis-backed Celery queue for background generation workers
 - LLM-driven planner with JSON schema validation, retries, and deterministic fallback
@@ -110,6 +111,10 @@ Task status flow:
 
 `pending -> queued -> planning -> generating -> reviewing -> completed`
 
+Additional terminal statuses: `failed`, `cancelled`.
+
+Transition policy rejects invalid rewinds (for example `completed -> planning`) and only allows explicit workflow edges.
+
 Planner lifecycle:
 
 `pending -> running -> completed` (or `failed` when worker crashes). Planner source is tracked as `llm` or `fallback`.
@@ -174,7 +179,7 @@ Backend CI workflow: `.github/workflows/backend-ci.yml`
 1. Add an alternate RQ queue adapter behind the queue backend interface.
 2. Add richer planner observability (token usage/latency) and per-step confidence metadata.
 3. Extend auth to role-based permissions (admin, project owner, auditor).
-4. Add pagination, filtering, and status transitions for task workflows.
+4. Add audit logging + webhook notifications for workflow state changes.
 5. Add Alembic migration scripts and DB migration CI checks.
 6. Add generated artifact persistence as files/object storage references.
 7. Add structured logging, tracing, and observability dashboards.
