@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     planner_api_key: str | None = None
     planner_base_url: str = "https://api.openai.com/v1"
     planner_max_retries: int = 2
+    jwt_secret_key: str = "change-me-in-production"
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 60
 
     @property
     def effective_celery_broker_url(self) -> str:

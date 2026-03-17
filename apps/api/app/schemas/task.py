@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 class TaskPlanRead(BaseModel):
     id: int
+    owner_id: int
     step_number: int
     title: str
     description: str
@@ -15,6 +16,7 @@ class TaskPlanRead(BaseModel):
 
 class GeneratedArtifactRead(BaseModel):
     id: int
+    owner_id: int
     artifact_type: str
     file_name: str
     content: str
@@ -26,6 +28,7 @@ class GeneratedArtifactRead(BaseModel):
 
 class TaskProgressUpdateRead(BaseModel):
     id: int
+    owner_id: int
     status: str
     message: str
     created_at: datetime
@@ -41,6 +44,7 @@ class TaskCreate(BaseModel):
 
 class TaskRead(BaseModel):
     id: int
+    owner_id: int
     title: str
     user_prompt: str
     status: str

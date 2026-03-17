@@ -28,15 +28,22 @@ Production-style MVP monorepo that accepts a natural-language API request, store
 ## Features
 
 - Landing page with product overview
-- Dashboard with:
+- Auth-aware frontend flows:
+  - Registration and login pages
+  - Protected dashboard
+  - Logout and current-user display in nav
+- Dashboard with per-user task data:
   - Build request form
   - Task list with statuses
   - Task detail panel with generated plan
 - FastAPI backend endpoints:
   - `GET /api/health`
-  - `POST /api/tasks`
-  - `GET /api/tasks`
-  - `GET /api/tasks/{task_id}`
+  - `POST /api/auth/register`
+  - `POST /api/auth/login`
+  - `GET /api/auth/me`
+  - `POST /api/tasks` (authenticated)
+  - `GET /api/tasks` (authenticated)
+  - `GET /api/tasks/{task_id}` (authenticated, owner-only)
 - PostgreSQL storage via SQLAlchemy
 - Redis-backed Celery queue for background generation workers
 - LLM-driven planner with JSON schema validation, retries, and deterministic fallback
@@ -75,6 +82,11 @@ Planner variables:
 - `PLANNER_API_KEY` (leave empty to force deterministic fallback planner)
 - `PLANNER_BASE_URL` (OpenAI-compatible endpoint, default `https://api.openai.com/v1`)
 - `PLANNER_MAX_RETRIES` (retries for malformed/failed LLM outputs)
+
+Auth variables:
+- `JWT_SECRET_KEY` (required in non-dev; use a strong random secret)
+- `JWT_ALGORITHM` (default `HS256`)
+- `ACCESS_TOKEN_EXPIRE_MINUTES` (default `60`)
 
 ## Manual Non-Docker Run
 
@@ -161,7 +173,7 @@ Backend CI workflow: `.github/workflows/backend-ci.yml`
 
 1. Add an alternate RQ queue adapter behind the queue backend interface.
 2. Add richer planner observability (token usage/latency) and per-step confidence metadata.
-3. Add authentication + multi-user task ownership.
+3. Extend auth to role-based permissions (admin, project owner, auditor).
 4. Add pagination, filtering, and status transitions for task workflows.
 5. Add Alembic migration scripts and DB migration CI checks.
 6. Add generated artifact persistence as files/object storage references.
