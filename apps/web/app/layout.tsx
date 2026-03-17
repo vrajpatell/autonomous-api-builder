@@ -1,6 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
 
+import FrontendErrorLogging from '@/app/components/FrontendErrorLogging';
 import HeaderNav from '@/app/components/HeaderNav';
 import { AuthProvider } from '@/lib/auth-context';
 
@@ -14,6 +15,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <AuthProvider>
+          <FrontendErrorLogging />
           <header style={{ borderBottom: '1px solid #e2e8f0', background: '#fff' }}>
             <HeaderNav />
           </header>

@@ -8,15 +8,21 @@ import {
   Task,
   User,
 } from './types';
+import { frontendLog, getCorrelationId } from './observability';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api';
 
 async function request<T>(path: string, init?: RequestInit, token?: string): Promise<T> {
+  const correlationId = getCorrelationId();
+  const requestId = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      'x-correlation-id': correlationId,
+      'x-request-id': requestId,
       ...(init?.headers || {}),
     },
     cache: 'no-store',
@@ -24,6 +30,7 @@ async function request<T>(path: string, init?: RequestInit, token?: string): Pro
 
   if (!response.ok) {
     const body = await response.text();
+    frontendLog('frontend.api_error', { path, status: response.status, body });
     throw new Error(body || 'Request failed');
   }
 
@@ -75,14 +82,17 @@ export function getTask(taskId: number, token: string): Promise<Task> {
 }
 
 export async function downloadArtifact(taskId: number, artifactId: number, token: string): Promise<Blob> {
+  const correlationId = getCorrelationId();
   const response = await fetch(`${API_BASE_URL}/tasks/${taskId}/artifacts/${artifactId}/download`, {
     headers: {
       Authorization: `Bearer ${token}`,
+      'x-correlation-id': correlationId,
     },
     cache: 'no-store',
   });
 
   if (!response.ok) {
+    frontendLog('frontend.artifact_download_error', { taskId, artifactId, status: response.status });
     throw new Error('Failed to download artifact');
   }
 

@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60
     storage_backend: str = "local"
     storage_local_base_path: str = "./data/artifacts"
+    otel_enabled: bool = False
+    otel_service_name: str = "autonomous-api-builder-api"
+    otel_exporter_otlp_endpoint: str = "http://otel-collector:4318/v1/traces"
 
     @property
     def effective_celery_broker_url(self) -> str:
