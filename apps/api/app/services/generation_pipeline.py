@@ -6,15 +6,13 @@ from app.models.task_plan import TaskPlan
 from app.models.task_progress import TaskProgressUpdate
 from app.models.task_status import TaskStatus
 from app.services.planner_factory import get_planner_service
+from app.services.task_service import TaskService
 
 
 class GenerationPipeline:
     @staticmethod
     def add_progress_update(db: Session, task: Task, status: TaskStatus, message: str) -> None:
-        task.status = status.value
-        db.add(TaskProgressUpdate(task_id=task.id, status=status.value, message=message))
-        db.commit()
-        db.refresh(task)
+        TaskService.update_status(db, task, status, message)
 
     @staticmethod
     def run(db: Session, task: Task) -> None:

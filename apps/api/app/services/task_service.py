@@ -1,10 +1,28 @@
+from dataclasses import dataclass
+from datetime import datetime
+from math import ceil
+
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, selectinload
 
+from app.domain.task_workflow import InvalidTaskStatusTransitionError, TaskWorkflowPolicy
 from app.models.task import Task
 from app.models.task_progress import TaskProgressUpdate
 from app.models.task_status import TaskStatus
 from app.queue import get_queue_backend
-from app.schemas.task import TaskCreate
+from app.schemas.task import PaginatedTaskRead, TaskCreate, TaskListMeta
+
+
+@dataclass
+class TaskListFilters:
+    page: int = 1
+    page_size: int = 10
+    status: TaskStatus | None = None
+    date_from: datetime | None = None
+    date_to: datetime | None = None
+    search: str | None = None
+    sort_by: str = "created_at"
+    sort_order: str = "desc"
 
 
 class TaskService:
@@ -32,37 +50,67 @@ class TaskService:
         try:
             queue_backend = get_queue_backend()
             task.queue_job_id = queue_backend.enqueue_task_generation(task.id)
-            task.status = TaskStatus.queued.value
-            db.add(
-                TaskProgressUpdate(
-                    task_id=task.id,
-                    status=TaskStatus.queued.value,
-                    message="Task queued for asynchronous worker processing",
-                )
+            TaskService.update_status(
+                db,
+                task,
+                TaskStatus.queued,
+                "Task queued for asynchronous worker processing",
+                commit=False,
             )
         except Exception as exc:
-            task.status = TaskStatus.failed.value
             task.error_message = str(exc)
-            db.add(
-                TaskProgressUpdate(task_id=task.id, status=TaskStatus.failed.value, message=str(exc))
-            )
+            TaskService.update_status(db, task, TaskStatus.failed, str(exc), commit=False)
 
         db.commit()
         db.refresh(task)
         return TaskService.get_task(db, task.id, owner_id)
 
     @staticmethod
-    def list_tasks(db: Session, owner_id: int) -> list[Task]:
-        return (
-            db.query(Task)
-            .options(
+    def list_tasks(db: Session, owner_id: int, filters: TaskListFilters) -> PaginatedTaskRead:
+        base_query = db.query(Task).filter(Task.owner_id == owner_id)
+
+        if filters.status is not None:
+            base_query = base_query.filter(Task.status == filters.status.value)
+        if filters.date_from is not None:
+            base_query = base_query.filter(Task.created_at >= filters.date_from)
+        if filters.date_to is not None:
+            base_query = base_query.filter(Task.created_at <= filters.date_to)
+        if filters.search:
+            needle = f"%{filters.search.lower()}%"
+            base_query = base_query.filter(
+                or_(
+                    func.lower(Task.title).like(needle),
+                    func.lower(Task.user_prompt).like(needle),
+                )
+            )
+
+        total_count = base_query.count()
+        total_pages = ceil(total_count / filters.page_size) if total_count else 0
+        offset = (filters.page - 1) * filters.page_size
+
+        sort_column = Task.created_at if filters.sort_by == "created_at" else Task.updated_at
+        sort_direction = sort_column.desc() if filters.sort_order == "desc" else sort_column.asc()
+
+        items = (
+            base_query.options(
                 selectinload(Task.plans),
                 selectinload(Task.artifacts),
                 selectinload(Task.progress_updates),
             )
-            .filter(Task.owner_id == owner_id)
-            .order_by(Task.created_at.desc())
+            .order_by(sort_direction)
+            .offset(offset)
+            .limit(filters.page_size)
             .all()
+        )
+
+        return PaginatedTaskRead(
+            items=items,
+            meta=TaskListMeta(
+                total_count=total_count,
+                current_page=filters.page,
+                page_size=filters.page_size,
+                total_pages=total_pages,
+            ),
         )
 
     @staticmethod
@@ -77,3 +125,39 @@ class TaskService:
             .filter(Task.id == task_id, Task.owner_id == owner_id)
             .first()
         )
+
+    @staticmethod
+    def update_task_status(
+        db: Session,
+        task_id: int,
+        owner_id: int,
+        next_status: TaskStatus,
+        message: str | None = None,
+    ) -> Task | None:
+        task = TaskService.get_task(db, task_id, owner_id)
+        if task is None:
+            return None
+
+        TaskService.update_status(db, task, next_status, message or f"Status changed to {next_status.value}")
+        return TaskService.get_task(db, task.id, owner_id)
+
+    @staticmethod
+    def update_status(
+        db: Session,
+        task: Task,
+        next_status: TaskStatus,
+        message: str,
+        *,
+        commit: bool = True,
+    ) -> None:
+        current = TaskStatus(task.status)
+        TaskWorkflowPolicy.validate_transition(current, next_status)
+
+        task.status = next_status.value
+        db.add(TaskProgressUpdate(task_id=task.id, status=next_status.value, message=message))
+        if commit:
+            db.commit()
+            db.refresh(task)
+
+
+__all__ = ["InvalidTaskStatusTransitionError"]

@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from app.models.task_status import TaskStatus
+
 
 class TaskPlanRead(BaseModel):
     id: int
@@ -42,6 +44,11 @@ class TaskCreate(BaseModel):
     user_prompt: str = Field(min_length=10)
 
 
+class TaskStatusUpdate(BaseModel):
+    status: TaskStatus
+    message: str | None = Field(default=None, max_length=1000)
+
+
 class TaskRead(BaseModel):
     id: int
     owner_id: int
@@ -60,3 +67,15 @@ class TaskRead(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class TaskListMeta(BaseModel):
+    total_count: int
+    current_page: int
+    page_size: int
+    total_pages: int
+
+
+class PaginatedTaskRead(BaseModel):
+    items: list[TaskRead]
+    meta: TaskListMeta
