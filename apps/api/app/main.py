@@ -4,6 +4,7 @@ import time
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.errors import register_exception_handlers
 from app.api.router import api_router
 from app.core.config import settings
 from app.observability import configure_logging, configure_tracing, metrics_response, new_id, set_request_context
@@ -13,6 +14,7 @@ configure_logging()
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title=settings.app_name)
+register_exception_handlers(app)
 configure_tracing(app)
 
 app.add_middleware(

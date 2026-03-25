@@ -1,7 +1,14 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
+from app.domain.task_rules import (
+    PROMPT_MAX_LENGTH,
+    PROMPT_MIN_LENGTH,
+    STATUS_MESSAGE_MAX_LENGTH,
+    TITLE_MAX_LENGTH,
+    TITLE_MIN_LENGTH,
+)
 from app.models.task_status import TaskStatus
 
 
@@ -40,13 +47,31 @@ class TaskProgressUpdateRead(BaseModel):
 
 
 class TaskCreate(BaseModel):
-    title: str = Field(min_length=3, max_length=255)
-    user_prompt: str = Field(min_length=10)
+    title: str = Field(min_length=TITLE_MIN_LENGTH, max_length=TITLE_MAX_LENGTH)
+    user_prompt: str = Field(min_length=PROMPT_MIN_LENGTH, max_length=PROMPT_MAX_LENGTH)
+
+    @field_validator("title", "user_prompt")
+    @classmethod
+    def content_must_not_be_whitespace(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("content cannot be empty or whitespace-only")
+        return stripped
 
 
 class TaskStatusUpdate(BaseModel):
     status: TaskStatus
-    message: str | None = Field(default=None, max_length=1000)
+    message: str | None = Field(default=None, max_length=STATUS_MESSAGE_MAX_LENGTH)
+
+    @field_validator("message")
+    @classmethod
+    def message_must_not_be_whitespace(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("message cannot be empty or whitespace-only")
+        return stripped
 
 
 class TaskRead(BaseModel):
