@@ -16,6 +16,8 @@ export function buildTask(overrides: Partial<Task> = {}): Task {
     plans: [],
     artifacts: [],
     progress_updates: [],
+    orchestration_runs: [],
+    agent_runs: [],
     ...overrides,
   };
 }

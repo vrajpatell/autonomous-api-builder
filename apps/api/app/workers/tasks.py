@@ -10,7 +10,7 @@ from app.models.task_progress import TaskProgressUpdate
 from app.models.task_status import TaskStatus
 from app.observability import new_id, set_request_context
 from app.observability.metrics import worker_job_duration_seconds, worker_jobs_total
-from app.services.generation_pipeline import GenerationPipeline
+from app.services.orchestration_service import OrchestrationService
 from app.services.task_service import TaskService
 from app.workers.celery_app import celery_app
 
@@ -34,7 +34,7 @@ def process_generation_task(task_id: int, correlation_id: str | None = None) -> 
             extra={"event": "worker.task_started", "task_id": task_id, "queue_job_id": task.queue_job_id},
         )
         with tracer.start_as_current_span("worker.process_generation_task", attributes={"task.id": task_id}):
-            GenerationPipeline.run(db, task)
+            OrchestrationService.run(db, task)
         worker_jobs_total.labels(result="success").inc()
     except Exception:
         worker_jobs_total.labels(result="failure").inc()

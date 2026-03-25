@@ -75,6 +75,32 @@ export default function TaskDetail({ task, token }: Props) {
         </ol>
       )}
 
+      <h4>Agent Orchestration</h4>
+      {task.orchestration_runs.length === 0 ? (
+        <p>Orchestrator has not started yet.</p>
+      ) : (
+        task.orchestration_runs.map((run) => (
+          <div key={run.id}>
+            <p>
+              <strong>Run #{run.id}</strong> - {run.status}
+              {run.current_agent ? ` (current: ${run.current_agent})` : ''}
+            </p>
+            {run.agent_runs.length === 0 ? (
+              <p>No agent executions recorded.</p>
+            ) : (
+              <ul>
+                {run.agent_runs.map((agentRun) => (
+                  <li key={agentRun.id}>
+                    <strong>{agentRun.sequence}. {agentRun.agent_name}</strong> - {agentRun.status}
+                    {agentRun.error_payload ? ` (error: ${agentRun.error_payload})` : ''}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ))
+      )}
+
       <h4>Artifacts</h4>
       {task.artifacts.length === 0 ? (
         <p>No generated artifacts yet.</p>

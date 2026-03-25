@@ -193,7 +193,28 @@ def test_worker_processes_task_asynchronously(client):
     assert artifact["storage_key"].startswith("tasks/")
     assert artifact["file_size"] > 0
     status_history = [event["status"] for event in body["progress_updates"]]
-    assert status_history == ["pending", "queued", "planning", "planning", "generating", "reviewing", "completed"]
+    assert status_history == [
+        "pending",
+        "queued",
+        "planning",
+        "planning",
+        "generating",
+        "generating",
+        "reviewing",
+        "reviewing",
+        "completed",
+    ]
+    assert len(body["orchestration_runs"]) == 1
+    run = body["orchestration_runs"][0]
+    assert run["status"] == "completed"
+    assert [agent["agent_name"] for agent in run["agent_runs"]] == [
+        "planner",
+        "coder",
+        "tester",
+        "reviewer",
+        "deployer",
+    ]
+    assert all(agent["status"] == "completed" for agent in run["agent_runs"])
 
 
 def test_tasks_require_authentication(client):

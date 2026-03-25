@@ -26,6 +26,30 @@ export type GeneratedArtifact = {
   created_at: string;
 };
 
+
+export type AgentRun = {
+  id: number;
+  orchestration_run_id: number;
+  task_id: number;
+  agent_name: 'planner' | 'coder' | 'tester' | 'reviewer' | 'deployer' | string;
+  sequence: number;
+  status: string;
+  output_payload: string | null;
+  error_payload: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+};
+
+export type OrchestrationRun = {
+  id: number;
+  task_id: number;
+  status: string;
+  current_agent: string | null;
+  started_at: string;
+  completed_at: string | null;
+  agent_runs: AgentRun[];
+};
+
 export type TaskProgressUpdate = {
   id: number;
   status: string;
@@ -48,6 +72,8 @@ export type Task = {
   plans: TaskPlan[];
   artifacts: GeneratedArtifact[];
   progress_updates: TaskProgressUpdate[];
+  orchestration_runs: OrchestrationRun[];
+  agent_runs: AgentRun[];
 };
 
 export type PaginatedTaskResponse = {

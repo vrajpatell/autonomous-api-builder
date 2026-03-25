@@ -19,3 +19,31 @@
 - Versioned router boundaries keep v1 stable while enabling parallel v2 implementation.
 - Task lifecycle and artifact table are prepared for asynchronous agent modules.
 - Generated plans are persisted and can be enhanced with AI planner output later.
+
+
+## Agent-Oriented Orchestration
+- `OrchestrationService` is the central coordinator executed by the async worker.
+- Agent interfaces are modular and swappable through `app/services/agents/*`:
+  - planner
+  - coder
+  - tester
+  - reviewer
+  - deployer
+- Persistence model:
+  - `orchestration_runs`: workflow-level status (`running/completed/failed`), current agent, timing
+  - `agent_runs`: per-agent sequence, status, output payload, error payload, timing
+- Existing queue compatibility is preserved: API still enqueues one worker job per task; worker now delegates to orchestrator.
+- UI consumption: `TaskRead` includes orchestration and agent run records for per-agent progress rendering in task details.
+
+### Interaction Flow (text diagram)
+```text
+API create task -> queue backend -> Celery worker
+  -> OrchestrationService.run(task)
+      -> PlannerAgent.run
+      -> CoderAgent.run
+      -> TesterAgent.run
+      -> ReviewerAgent.run
+      -> DeployerAgent.run
+  -> persist artifacts + agent run records
+  -> mark task completed/failed
+```
