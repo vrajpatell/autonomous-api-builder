@@ -224,11 +224,25 @@ cd apps/api
 PYTHONPATH=. pytest -q
 ```
 
-### Frontend (placeholder scaffold)
+### Frontend unit/integration (React Testing Library + Vitest)
 ```bash
 cd apps/web
-npm test
+npm run test:unit
 ```
+
+### Frontend E2E (Playwright)
+```bash
+cd apps/web
+# first run only (or after Playwright upgrades)
+npx playwright install --with-deps chromium
+npm run test:e2e
+```
+
+### Frontend testing architecture
+- `apps/web/tests/components/*`: focused component tests for `TaskForm` and `TaskList`.
+- `apps/web/tests/pages/*`: page-level integration tests for dashboard loading/error behavior and auth flows.
+- `apps/web/tests/utils/*`: shared test fixtures and API mock helpers.
+- `apps/web/e2e/*`: end-to-end tests for register/login, task creation, task detail viewing, and list filtering/pagination interactions.
 
 ## Deployment Steps
 
@@ -253,6 +267,12 @@ Backend CI workflow: `.github/workflows/backend-ci.yml`
 - Runs `alembic upgrade head`
 - Runs `alembic check` to catch migration/model drift
 - Runs pytest on push/PR for backend-related changes
+
+Frontend CI workflow: `.github/workflows/frontend-ci.yml`
+- Installs Node dependencies in `apps/web`
+- Runs React Testing Library + Vitest unit/integration tests
+- Installs Playwright Chromium browser
+- Runs Playwright E2E workflows on push/PR for frontend-related changes
 
 ## Screenshots
 
