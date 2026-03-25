@@ -27,7 +27,7 @@ const task = {
 };
 
 async function mockApi(page: Page) {
-  await page.route('http://localhost:8000/api/**', async (route) => {
+  await page.route('http://localhost:8000/api/v1/**', async (route) => {
     const url = route.request().url();
     const method = route.request().method();
 

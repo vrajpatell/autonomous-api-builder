@@ -39,17 +39,18 @@ Production-style MVP monorepo that accepts a natural-language API request, store
 - FastAPI backend endpoints:
   - `GET /metrics` (Prometheus metrics)
   - `GET /api/metrics` (Prometheus metrics alias)
-  - `GET /api/health`
-  - `POST /api/auth/register`
-  - `POST /api/auth/login`
-  - `GET /api/auth/me`
-  - `POST /api/tasks` (authenticated)
-  - `GET /api/tasks` (authenticated, pagination/filter/sort/query metadata)
-  - `GET /api/tasks/{task_id}` (authenticated, owner-only)
-  - `PATCH /api/tasks/{task_id}/status` (authenticated, owner-only, transition-safe)
-  - `GET /api/tasks/{task_id}/artifacts` (authenticated, owner-only artifact listing)
-  - `GET /api/tasks/{task_id}/artifacts/{artifact_id}` (authenticated metadata lookup)
-  - `GET /api/tasks/{task_id}/artifacts/{artifact_id}/download` (authenticated artifact retrieval)
+  - `GET /api/v1/health`
+  - `POST /api/v1/auth/register`
+  - `POST /api/v1/auth/login`
+  - `GET /api/v1/auth/me`
+  - `POST /api/v1/tasks` (authenticated)
+  - `GET /api/v1/tasks` (authenticated, pagination/filter/sort/query metadata)
+  - `GET /api/v1/tasks/{task_id}` (authenticated, owner-only)
+  - `PATCH /api/v1/tasks/{task_id}/status` (authenticated, owner-only, transition-safe)
+  - `GET /api/v1/tasks/{task_id}/artifacts` (authenticated, owner-only artifact listing)
+  - `GET /api/v1/tasks/{task_id}/artifacts/{artifact_id}` (authenticated metadata lookup)
+  - `GET /api/v1/tasks/{task_id}/artifacts/{artifact_id}/download` (authenticated artifact retrieval)
+  - Legacy `/api/*` aliases currently remain for backward compatibility during migration
 - PostgreSQL storage via SQLAlchemy
 - Redis-backed Celery queue for background generation workers
 - LLM-driven planner with JSON schema validation, retries, and deterministic fallback
@@ -176,6 +177,19 @@ npm run dev
 ```
 
 
+
+## API Versioning and Validation
+
+- Primary backend endpoints are now namespaced under `/api/v1` to make future `/api/v2` evolution explicit and low-risk.
+- Existing `/api/*` routes are temporarily preserved as compatibility aliases that point to the same v1 handlers.
+- Route handlers delegate business rules to `TaskService` and domain policies instead of embedding validation logic inline.
+- Domain validation now enforces:
+  - title length bounds and non-whitespace content
+  - prompt length bounds and non-whitespace content
+  - status update message non-whitespace and max length
+  - workflow transition conflicts as domain-level conflict errors
+- API failures now return a consistent envelope shape: `{"error": {"code", "message", "details"}}`.
+
 ## Observability
 
 ### What is instrumented
@@ -256,7 +270,7 @@ npm run test:e2e
 ### Frontend on Vercel
 1. Import repo into Vercel.
 2. Set project root to `apps/web`.
-3. Set `NEXT_PUBLIC_API_BASE_URL` to your Render API URL + `/api`.
+3. Set `NEXT_PUBLIC_API_BASE_URL` to your Render API URL + `/api/v1`.
 4. Deploy with default Next.js settings (`vercel.json` included).
 
 ## CI/CD

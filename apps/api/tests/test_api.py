@@ -5,7 +5,7 @@ from app.workers.tasks import process_generation_task
 
 def register_and_login(client, email: str, password: str, display_name: str = "User"):
     response = client.post(
-        "/api/auth/register",
+        "/api/v1/auth/register",
         json={"email": email, "password": password, "display_name": display_name},
     )
     assert response.status_code == 201
@@ -14,20 +14,20 @@ def register_and_login(client, email: str, password: str, display_name: str = "U
 
 
 def create_task(client, headers, title: str, prompt: str):
-    response = client.post("/api/tasks", json={"title": title, "user_prompt": prompt}, headers=headers)
+    response = client.post("/api/v1/tasks", json={"title": title, "user_prompt": prompt}, headers=headers)
     assert response.status_code == 201
     return response.json()
 
 
 def test_health(client):
-    response = client.get("/api/health")
+    response = client.get("/api/v1/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
 
 
 def test_auth_me(client):
     headers, user = register_and_login(client, "me@example.com", "password123")
-    me_response = client.get("/api/auth/me", headers=headers)
+    me_response = client.get("/api/v1/auth/me", headers=headers)
     assert me_response.status_code == 200
     assert me_response.json()["id"] == user["id"]
     assert me_response.json()["email"] == "me@example.com"
@@ -52,7 +52,7 @@ def test_create_and_list_tasks_scoped_by_owner(client):
     assert created["error_message"] is None
     assert len(created["progress_updates"]) == 2
 
-    list_response = client.get("/api/tasks", headers=user1_headers)
+    list_response = client.get("/api/v1/tasks", headers=user1_headers)
     assert list_response.status_code == 200
     body = list_response.json()
     assert len(body["items"]) == 1
@@ -60,15 +60,15 @@ def test_create_and_list_tasks_scoped_by_owner(client):
     assert body["meta"]["total_count"] == 1
     assert body["meta"]["current_page"] == 1
 
-    other_list_response = client.get("/api/tasks", headers=user2_headers)
+    other_list_response = client.get("/api/v1/tasks", headers=user2_headers)
     assert other_list_response.status_code == 200
     assert other_list_response.json()["items"] == []
 
-    detail_response = client.get(f"/api/tasks/{created['id']}", headers=user1_headers)
+    detail_response = client.get(f"/api/v1/tasks/{created['id']}", headers=user1_headers)
     assert detail_response.status_code == 200
     assert detail_response.json()["title"] == "FastAPI CRUD Generator"
 
-    forbidden_detail = client.get(f"/api/tasks/{created['id']}", headers=user2_headers)
+    forbidden_detail = client.get(f"/api/v1/tasks/{created['id']}", headers=user2_headers)
     assert forbidden_detail.status_code == 404
 
 
@@ -79,26 +79,26 @@ def test_task_list_supports_pagination_filtering_sorting_and_search(client):
     create_task(client, headers, "Beta Service", "Create beta service with queue integration and observability support.")
     create_task(client, headers, "Gamma Pipeline", "Design gamma data pipeline and build the worker integration layer.")
 
-    list_response = client.get("/api/tasks?page=1&page_size=2", headers=headers)
+    list_response = client.get("/api/v1/tasks?page=1&page_size=2", headers=headers)
     assert list_response.status_code == 200
     page_1 = list_response.json()
     assert len(page_1["items"]) == 2
     assert page_1["meta"] == {"total_count": 3, "current_page": 1, "page_size": 2, "total_pages": 2}
 
-    list_response_page_2 = client.get("/api/tasks?page=2&page_size=2", headers=headers)
+    list_response_page_2 = client.get("/api/v1/tasks?page=2&page_size=2", headers=headers)
     assert list_response_page_2.status_code == 200
     assert len(list_response_page_2.json()["items"]) == 1
 
-    search_response = client.get("/api/tasks?search=beta", headers=headers)
+    search_response = client.get("/api/v1/tasks?search=beta", headers=headers)
     assert search_response.status_code == 200
     assert len(search_response.json()["items"]) == 1
     assert search_response.json()["items"][0]["title"] == "Beta Service"
 
-    status_filtered = client.get("/api/tasks?status=queued", headers=headers)
+    status_filtered = client.get("/api/v1/tasks?status=queued", headers=headers)
     assert status_filtered.status_code == 200
     assert len(status_filtered.json()["items"]) == 3
 
-    sort_oldest = client.get("/api/tasks?sort_by=created_at&sort_order=asc", headers=headers)
+    sort_oldest = client.get("/api/v1/tasks?sort_by=created_at&sort_order=asc", headers=headers)
     assert sort_oldest.status_code == 200
     titles = [item["title"] for item in sort_oldest.json()["items"]]
     assert titles == ["Alpha API", "Beta Service", "Gamma Pipeline"]
@@ -110,15 +110,15 @@ def test_task_list_supports_date_range_filter(client):
     create_task(client, headers, "Date filter task", "Build a task used to validate date range filters in list endpoints.")
 
     now = datetime.now(timezone.utc)
-    start = (now - timedelta(days=1)).isoformat()
-    end = (now + timedelta(days=1)).isoformat()
-    inside = client.get(f"/api/tasks?date_from={start}&date_to={end}", headers=headers)
+    start = (now - timedelta(days=1)).isoformat().replace("+00:00", "Z")
+    end = (now + timedelta(days=1)).isoformat().replace("+00:00", "Z")
+    inside = client.get(f"/api/v1/tasks?date_from={start}&date_to={end}", headers=headers)
     assert inside.status_code == 200
     assert inside.json()["meta"]["total_count"] == 1
 
-    outside_start = (now + timedelta(days=1)).isoformat()
-    outside_end = (now + timedelta(days=2)).isoformat()
-    outside = client.get(f"/api/tasks?date_from={outside_start}&date_to={outside_end}", headers=headers)
+    outside_start = (now + timedelta(days=1)).isoformat().replace("+00:00", "Z")
+    outside_end = (now + timedelta(days=2)).isoformat().replace("+00:00", "Z")
+    outside = client.get(f"/api/v1/tasks?date_from={outside_start}&date_to={outside_end}", headers=headers)
     assert outside.status_code == 200
     assert outside.json()["meta"]["total_count"] == 0
 
@@ -134,7 +134,7 @@ def test_status_transitions_validate_and_persist_history(client):
     )
 
     to_planning = client.patch(
-        f"/api/tasks/{task['id']}/status",
+        f"/api/v1/tasks/{task['id']}/status",
         headers=headers,
         json={"status": "planning", "message": "Worker started planning"},
     )
@@ -142,7 +142,7 @@ def test_status_transitions_validate_and_persist_history(client):
     assert to_planning.json()["status"] == "planning"
 
     invalid_back = client.patch(
-        f"/api/tasks/{task['id']}/status",
+        f"/api/v1/tasks/{task['id']}/status",
         headers=headers,
         json={"status": "queued", "message": "Invalid rewind"},
     )
@@ -151,20 +151,20 @@ def test_status_transitions_validate_and_persist_history(client):
     transition_sequence = ["generating", "reviewing", "completed"]
     for status in transition_sequence:
         response = client.patch(
-            f"/api/tasks/{task['id']}/status",
+            f"/api/v1/tasks/{task['id']}/status",
             headers=headers,
             json={"status": status},
         )
         assert response.status_code == 200
 
     terminal_transition = client.patch(
-        f"/api/tasks/{task['id']}/status",
+        f"/api/v1/tasks/{task['id']}/status",
         headers=headers,
         json={"status": "planning"},
     )
     assert terminal_transition.status_code == 409
 
-    detail = client.get(f"/api/tasks/{task['id']}", headers=headers)
+    detail = client.get(f"/api/v1/tasks/{task['id']}", headers=headers)
     assert detail.status_code == 200
     assert detail.json()["status"] == "completed"
 
@@ -180,7 +180,7 @@ def test_worker_processes_task_asynchronously(client):
 
     process_generation_task(task["id"])
 
-    detail_response = client.get(f"/api/tasks/{task['id']}", headers=headers)
+    detail_response = client.get(f"/api/v1/tasks/{task['id']}", headers=headers)
     assert detail_response.status_code == 200
     body = detail_response.json()
     assert body["status"] == "completed"
@@ -198,7 +198,7 @@ def test_worker_processes_task_asynchronously(client):
 
 def test_tasks_require_authentication(client):
     payload = {"title": "No auth", "user_prompt": "This request should fail without an auth token."}
-    response = client.post("/api/tasks", json=payload)
+    response = client.post("/api/v1/tasks", json=payload)
     assert response.status_code == 401
 
 
@@ -213,19 +213,109 @@ def test_artifact_listing_metadata_and_download(client):
 
     process_generation_task(task["id"])
 
-    list_response = client.get(f"/api/tasks/{task['id']}/artifacts", headers=headers)
+    list_response = client.get(f"/api/v1/tasks/{task['id']}/artifacts", headers=headers)
     assert list_response.status_code == 200
     artifacts = list_response.json()
     assert len(artifacts) == 3
 
     artifact_id = artifacts[0]["id"]
-    metadata_response = client.get(f"/api/tasks/{task['id']}/artifacts/{artifact_id}", headers=headers)
+    metadata_response = client.get(f"/api/v1/tasks/{task['id']}/artifacts/{artifact_id}", headers=headers)
     assert metadata_response.status_code == 200
     metadata = metadata_response.json()
     assert metadata["storage_backend"] == "local"
     assert metadata["storage_key"].startswith("tasks/")
 
-    download_response = client.get(f"/api/tasks/{task['id']}/artifacts/{artifact_id}/download", headers=headers)
+    download_response = client.get(f"/api/v1/tasks/{task['id']}/artifacts/{artifact_id}/download", headers=headers)
     assert download_response.status_code == 200
     assert len(download_response.content) == metadata["file_size"]
     assert "attachment;" in download_response.headers["content-disposition"]
+
+
+def test_versioned_routes_and_legacy_alias_both_work(client):
+    v1 = client.get("/api/v1/health")
+    legacy = client.get("/api/health")
+
+    assert v1.status_code == 200
+    assert legacy.status_code == 200
+    assert v1.json() == legacy.json() == {"status": "ok"}
+
+
+def test_create_task_validation_rejects_whitespace_and_bad_lengths(client):
+    headers, _ = register_and_login(client, "validation@example.com", "password123")
+
+    whitespace_title = client.post(
+        "/api/v1/tasks",
+        headers=headers,
+        json={"title": "   ", "user_prompt": "This prompt has enough content."},
+    )
+    assert whitespace_title.status_code == 422
+    assert whitespace_title.json()["error"]["code"] == "request_validation_error"
+
+    short_prompt = client.post(
+        "/api/v1/tasks",
+        headers=headers,
+        json={"title": "Valid title", "user_prompt": "short"},
+    )
+    assert short_prompt.status_code == 422
+
+    too_long_title = client.post(
+        "/api/v1/tasks",
+        headers=headers,
+        json={"title": "X" * 121, "user_prompt": "This prompt has enough content and stays within the max bounds."},
+    )
+    assert too_long_title.status_code == 422
+
+
+def test_status_update_validation_and_domain_conflicts(client):
+    headers, _ = register_and_login(client, "status-validation@example.com", "password123")
+    task = create_task(
+        client,
+        headers,
+        "Status validation",
+        "Create a task to test invalid status values and whitespace status messages.",
+    )
+
+    invalid_status = client.patch(
+        f"/api/v1/tasks/{task['id']}/status",
+        headers=headers,
+        json={"status": "not_real"},
+    )
+    assert invalid_status.status_code == 422
+    assert invalid_status.json()["error"]["code"] == "request_validation_error"
+
+    whitespace_message = client.patch(
+        f"/api/v1/tasks/{task['id']}/status",
+        headers=headers,
+        json={"status": "planning", "message": "     "},
+    )
+    assert whitespace_message.status_code == 422
+
+    advance = client.patch(
+        f"/api/v1/tasks/{task['id']}/status",
+        headers=headers,
+        json={"status": "planning", "message": "Begin"},
+    )
+    assert advance.status_code == 200
+
+    invalid_rewind = client.patch(
+        f"/api/v1/tasks/{task['id']}/status",
+        headers=headers,
+        json={"status": "queued", "message": "Rewind"},
+    )
+    assert invalid_rewind.status_code == 409
+    assert invalid_rewind.json()["error"]["code"] == "conflict"
+
+
+def test_domain_error_shape_for_invalid_date_range(client):
+    headers, _ = register_and_login(client, "range@example.com", "password123")
+    create_task(client, headers, "Range task", "Build a task to test invalid date range domain validation handling.")
+
+    now = datetime.now(timezone.utc)
+    start = (now + timedelta(days=1)).isoformat().replace("+00:00", "Z")
+    end = (now - timedelta(days=1)).isoformat().replace("+00:00", "Z")
+
+    response = client.get(f"/api/v1/tasks?date_from={start}&date_to={end}", headers=headers)
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["error"]["code"] == "validation_error"
+    assert payload["error"]["message"] == "date_from must be before or equal to date_to"

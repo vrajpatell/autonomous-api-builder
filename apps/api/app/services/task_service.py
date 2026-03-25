@@ -6,6 +6,8 @@ from math import ceil
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, selectinload
 
+from app.domain.exceptions import ConflictDomainError, NotFoundDomainError, ValidationDomainError
+from app.domain.task_rules import TaskDomainRules
 from app.domain.task_workflow import InvalidTaskStatusTransitionError, TaskWorkflowPolicy
 from app.models.artifact import GeneratedArtifact
 from app.models.task import Task
@@ -36,9 +38,11 @@ class TaskService:
 
     @staticmethod
     def create_task(db: Session, payload: TaskCreate, owner_id: int) -> Task:
+        title, user_prompt = TaskDomainRules.validate_create_payload(title=payload.title, user_prompt=payload.user_prompt)
+
         task = Task(
-            title=payload.title,
-            user_prompt=payload.user_prompt,
+            title=title,
+            user_prompt=user_prompt,
             owner_id=owner_id,
             status=TaskStatus.pending.value,
             planner_status="pending",
@@ -91,6 +95,9 @@ class TaskService:
 
     @staticmethod
     def list_tasks(db: Session, owner_id: int, filters: TaskListFilters) -> PaginatedTaskRead:
+        if filters.date_from and filters.date_to and filters.date_from > filters.date_to:
+            raise ValidationDomainError("date_from must be before or equal to date_to", details={"field": "date_range"})
+
         base_query = db.query(Task).filter(Task.owner_id == owner_id)
 
         if filters.status is not None:
@@ -138,8 +145,8 @@ class TaskService:
         )
 
     @staticmethod
-    def get_task(db: Session, task_id: int, owner_id: int) -> Task | None:
-        return (
+    def get_task(db: Session, task_id: int, owner_id: int) -> Task:
+        task = (
             db.query(Task)
             .options(
                 selectinload(Task.plans),
@@ -149,12 +156,13 @@ class TaskService:
             .filter(Task.id == task_id, Task.owner_id == owner_id)
             .first()
         )
+        if task is None:
+            raise NotFoundDomainError("Task not found")
+        return task
 
     @staticmethod
-    def list_artifacts(db: Session, task_id: int, owner_id: int) -> list[GeneratedArtifact] | None:
-        task = db.query(Task.id).filter(Task.id == task_id, Task.owner_id == owner_id).first()
-        if task is None:
-            return None
+    def list_artifacts(db: Session, task_id: int, owner_id: int) -> list[GeneratedArtifact]:
+        TaskService.get_task(db, task_id, owner_id)
         return (
             db.query(GeneratedArtifact)
             .filter(GeneratedArtifact.task_id == task_id)
@@ -163,17 +171,19 @@ class TaskService:
         )
 
     @staticmethod
-    def get_artifact(db: Session, task_id: int, artifact_id: int, owner_id: int) -> GeneratedArtifact | None:
-        return (
+    def get_artifact(db: Session, task_id: int, artifact_id: int, owner_id: int) -> GeneratedArtifact:
+        TaskService.get_task(db, task_id, owner_id)
+        artifact = (
             db.query(GeneratedArtifact)
-            .join(Task, Task.id == GeneratedArtifact.task_id)
             .filter(
                 GeneratedArtifact.id == artifact_id,
                 GeneratedArtifact.task_id == task_id,
-                Task.owner_id == owner_id,
             )
             .first()
         )
+        if artifact is None:
+            raise NotFoundDomainError("Artifact not found")
+        return artifact
 
     @staticmethod
     def update_task_status(
@@ -182,12 +192,15 @@ class TaskService:
         owner_id: int,
         next_status: TaskStatus,
         message: str | None = None,
-    ) -> Task | None:
+    ) -> Task:
+        normalized_message = TaskDomainRules.validate_status_update(status=next_status, message=message)
         task = TaskService.get_task(db, task_id, owner_id)
-        if task is None:
-            return None
 
-        TaskService.update_status(db, task, next_status, message or f"Status changed to {next_status.value}")
+        try:
+            TaskService.update_status(db, task, next_status, normalized_message or f"Status changed to {next_status.value}")
+        except InvalidTaskStatusTransitionError as exc:
+            raise ConflictDomainError(str(exc)) from exc
+
         return TaskService.get_task(db, task.id, owner_id)
 
     @staticmethod
