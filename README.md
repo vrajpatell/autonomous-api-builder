@@ -1,6 +1,6 @@
 # Autonomous API Builder
 
-Production-style MVP monorepo that accepts a natural-language API request, stores it, generates a structured execution plan, and shows task status/output in a dashboard.
+Production-style MVP monorepo that accepts a natural-language API request, stores it, executes a multi-agent orchestration workflow, and shows task status/output in a dashboard.
 
 ## Monorepo Structure
 
@@ -53,6 +53,8 @@ Production-style MVP monorepo that accepts a natural-language API request, store
   - Legacy `/api/*` aliases currently remain for backward compatibility during migration
 - PostgreSQL storage via SQLAlchemy
 - Redis-backed Celery queue for background generation workers
+- Multi-agent orchestration engine (`planner -> coder -> tester -> reviewer -> deployer`) with swappable interfaces
+- Per-agent execution persistence (`orchestration_runs`, `agent_runs`) with structured outputs/errors
 - LLM-driven planner with JSON schema validation, retries, and deterministic fallback
 - Basic automated tests for backend and frontend scaffold
 
@@ -147,6 +149,22 @@ alembic upgrade head
 alembic downgrade -1
 alembic check
 ```
+
+
+### Agent Orchestration Lifecycle
+
+Worker execution now runs through a central orchestrator instead of a single monolithic generation step.
+
+```text
+Task (queued)
+  -> Planner Agent (structured steps)
+  -> Coder Agent (placeholder/generated artifacts via service abstraction)
+  -> Tester Agent (simulated validation checks)
+  -> Reviewer Agent (review summary)
+  -> Deployer Agent (deployment metadata/checklist)
+```
+
+Each agent run stores status, timestamps, output payloads, and error payloads so real LLM-backed implementations can replace placeholders later with no API schema changes.
 
 ### Async Task Lifecycle
 

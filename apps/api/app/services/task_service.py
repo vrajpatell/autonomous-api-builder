@@ -10,6 +10,7 @@ from app.domain.exceptions import ConflictDomainError, NotFoundDomainError, Vali
 from app.domain.task_rules import TaskDomainRules
 from app.domain.task_workflow import InvalidTaskStatusTransitionError, TaskWorkflowPolicy
 from app.models.artifact import GeneratedArtifact
+from app.models.orchestration import OrchestrationRun
 from app.models.task import Task
 from app.models.task_progress import TaskProgressUpdate
 from app.models.task_status import TaskStatus
@@ -127,6 +128,8 @@ class TaskService:
                 selectinload(Task.plans),
                 selectinload(Task.artifacts),
                 selectinload(Task.progress_updates),
+                selectinload(Task.orchestration_runs).selectinload(OrchestrationRun.agent_runs),
+                selectinload(Task.agent_runs),
             )
             .order_by(sort_direction)
             .offset(offset)
@@ -152,6 +155,8 @@ class TaskService:
                 selectinload(Task.plans),
                 selectinload(Task.artifacts),
                 selectinload(Task.progress_updates),
+                selectinload(Task.orchestration_runs).selectinload(OrchestrationRun.agent_runs),
+                selectinload(Task.agent_runs),
             )
             .filter(Task.id == task_id, Task.owner_id == owner_id)
             .first()

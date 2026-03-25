@@ -46,6 +46,35 @@ class TaskProgressUpdateRead(BaseModel):
         from_attributes = True
 
 
+class AgentRunRead(BaseModel):
+    id: int
+    orchestration_run_id: int
+    task_id: int
+    agent_name: str
+    sequence: int
+    status: str
+    output_payload: str | None
+    error_payload: str | None
+    started_at: datetime | None
+    completed_at: datetime | None
+
+    class Config:
+        from_attributes = True
+
+
+class OrchestrationRunRead(BaseModel):
+    id: int
+    task_id: int
+    status: str
+    current_agent: str | None
+    started_at: datetime
+    completed_at: datetime | None
+    agent_runs: list[AgentRunRead] = []
+
+    class Config:
+        from_attributes = True
+
+
 class TaskCreate(BaseModel):
     title: str = Field(min_length=TITLE_MIN_LENGTH, max_length=TITLE_MAX_LENGTH)
     user_prompt: str = Field(min_length=PROMPT_MIN_LENGTH, max_length=PROMPT_MAX_LENGTH)
@@ -89,6 +118,8 @@ class TaskRead(BaseModel):
     plans: list[TaskPlanRead] = []
     artifacts: list[GeneratedArtifactRead] = []
     progress_updates: list[TaskProgressUpdateRead] = []
+    orchestration_runs: list[OrchestrationRunRead] = []
+    agent_runs: list[AgentRunRead] = []
 
     class Config:
         from_attributes = True

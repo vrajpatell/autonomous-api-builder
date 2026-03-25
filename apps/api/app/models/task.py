@@ -32,3 +32,15 @@ class Task(Base):
         cascade="all, delete-orphan",
         order_by="TaskProgressUpdate.created_at",
     )
+    orchestration_runs = relationship(
+        "OrchestrationRun",
+        back_populates="task",
+        cascade="all, delete-orphan",
+        order_by="OrchestrationRun.id",
+    )
+    agent_runs = relationship(
+        "AgentRun",
+        back_populates="task",
+        cascade="all, delete-orphan",
+        order_by="AgentRun.id",
+    )
